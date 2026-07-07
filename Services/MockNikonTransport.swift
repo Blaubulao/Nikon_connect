@@ -74,6 +74,44 @@ actor MockNikonTransport: CameraTransport {
         return data
     }
 
+    func downloadAssetToTemporaryFile(
+        _ asset: PhotoAsset,
+        from session: CameraSession,
+        onProgress: (@Sendable (DownloadTransferProgress) async -> Void)?
+    ) async throws -> URL {
+        let estimatedSize = max(asset.byteSize, 0)
+
+        if let onProgress {
+            await onProgress(
+                DownloadTransferProgress(
+                    bytesTransferred: 0,
+                    totalBytes: estimatedSize,
+                    resumedCount: 0,
+                    currentOffset: 0,
+                    chunkSize: 0
+                )
+            )
+        }
+
+        let temporaryURL = try await downloadAssetToTemporaryFile(asset, from: session)
+
+        if let onProgress {
+            let measuredSize = ((try? FileManager.default.attributesOfItem(atPath: temporaryURL.path)[.size]) as? NSNumber)?.int64Value ?? 0
+            let finalSize = max(estimatedSize, measuredSize)
+            await onProgress(
+                DownloadTransferProgress(
+                    bytesTransferred: finalSize,
+                    totalBytes: finalSize,
+                    resumedCount: 0,
+                    currentOffset: finalSize,
+                    chunkSize: finalSize
+                )
+            )
+        }
+
+        return temporaryURL
+    }
+
     func consumeDiagnostics() async -> [String] {
         []
     }

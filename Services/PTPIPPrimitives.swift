@@ -34,6 +34,8 @@ enum PTPOperationCode: UInt16, Sendable {
     case getObjectInfo = 0x1008
     case getObject = 0x1009
     case getThumb = 0x100A
+    case getPartialObject = 0x101B
+    case getObjectsMetaData = 0x9434
 }
 
 enum PTPResponseCode: UInt16, Sendable {
@@ -74,6 +76,11 @@ enum PTPResponseCode: UInt16, Sendable {
 struct PTPIPDeviceInfo: Sendable {
     let model: String?
     let manufacturer: String?
+    let operationsSupported: Set<UInt16>
+
+    func supportsOperation(_ operation: PTPOperationCode) -> Bool {
+        operationsSupported.contains(operation.rawValue)
+    }
 }
 
 struct PTPIPObjectInfo: Sendable {
@@ -281,6 +288,14 @@ extension PTPIPBinary {
         var payload = Data()
         payload.appendUInt32LE(connectionNumber)
         return encodePacket(type: .initEventRequest, payload: payload)
+    }
+
+    static func encodeProbeRequest() -> Data {
+        encodePacket(type: .probeRequest, payload: Data())
+    }
+
+    static func encodeProbeResponse() -> Data {
+        encodePacket(type: .probeResponse, payload: Data())
     }
 
     static func encodeOperationRequest(

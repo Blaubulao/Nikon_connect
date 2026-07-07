@@ -9,7 +9,7 @@ struct DownloadRecordRow: View {
                 .font(.system(size: 18))
                 .foregroundStyle(fileColor)
                 .frame(width: 36, height: 36)
-                .background(fileColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .background(fileColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline) {
@@ -25,10 +25,10 @@ struct DownloadRecordRow: View {
                             Text("已入相册")
                         }
                         .font(.system(size: 9, design: .rounded).weight(.bold))
-                        .foregroundStyle(Color(red: 0.13, green: 0.75, blue: 0.42))
+                        .foregroundStyle(AppTheme.success)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
-                        .background(Color(red: 0.13, green: 0.75, blue: 0.42).opacity(0.08))
+                        .background(AppTheme.success.opacity(0.10))
                         .clipShape(Capsule())
                     } else {
                         HStack(spacing: 2) {
@@ -36,10 +36,10 @@ struct DownloadRecordRow: View {
                             Text("仅沙盒")
                         }
                         .font(.system(size: 9, design: .rounded).weight(.bold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppTheme.inkMuted)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
-                        .background(Color.primary.opacity(0.05))
+                        .background(AppTheme.surfaceMuted)
                         .clipShape(Capsule())
                     }
                 }
@@ -51,12 +51,7 @@ struct DownloadRecordRow: View {
                     Text(Formatters.shortDate(record.completedAt))
                         .font(.system(.caption, design: .rounded))
                 }
-                .foregroundStyle(.secondary)
-                
-                Text(record.savedURL.path)
-                    .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
+                .foregroundStyle(AppTheme.inkMuted)
             }
         }
         .padding(.vertical, 4)
@@ -76,11 +71,11 @@ struct DownloadRecordRow: View {
     private var fileColor: Color {
         let ext = record.savedURL.pathExtension.lowercased()
         if ext == "mov" || ext == "mp4" {
-            return .red
+            return AppTheme.danger
         } else if ext == "nef" || ext == "nrw" || ext == "raw" {
-            return .orange
+            return AppTheme.accentStrong
         } else {
-            return Color(red: 0.20, green: 0.50, blue: 0.98)
+            return AppTheme.info
         }
     }
 }

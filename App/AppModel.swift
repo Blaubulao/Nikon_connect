@@ -1,6 +1,27 @@
 import Foundation
 import SwiftUI
 
+struct ActiveDownloadProgress: Equatable {
+    let fileName: String
+    let currentItemNumber: Int
+    let totalItemCount: Int
+    let bytesTransferred: Int64
+    let totalBytes: Int64
+    let resumedCount: Int
+    let currentOffset: Int64
+    let chunkSize: Int64
+
+    var fractionCompleted: Double {
+        guard totalBytes > 0 else { return 0 }
+        let progress = Double(bytesTransferred) / Double(totalBytes)
+        return min(max(progress, 0), 1)
+    }
+
+    var percentageText: String {
+        "\(Int((fractionCompleted * 100).rounded()))%"
+    }
+}
+
 @MainActor
 final class AppModel: ObservableObject {
     @Published var hostInput: String
@@ -17,6 +38,7 @@ final class AppModel: ObservableObject {
     @Published var downloadDirectoryPath = ""
     @Published var activityLog: [LogEntry] = []
     @Published var alertContext: AlertContext?
+    @Published var activeDownloadProgress: ActiveDownloadProgress?
     @Published var lastSummary = "先在系统设置里连接 Nikon 相机的 Wi‑Fi，然后回到这里开始。"
     @Published var isWorking = false
 
@@ -86,6 +108,14 @@ final class AppModel: ObservableObject {
         }
     }
 
+    var workingStatusTitle: String {
+        guard workflowState == .downloading, let activeDownloadProgress else {
+            return workflowState.title
+        }
+
+        return "下载 \(activeDownloadProgress.currentItemNumber)/\(activeDownloadProgress.totalItemCount) · \(activeDownloadProgress.percentageText)"
+    }
+
     func bootstrapIfNeeded() async {
         guard !didBootstrap else { return }
         didBootstrap = true
@@ -120,6 +150,7 @@ final class AppModel: ObservableObject {
             photoAssets = []
             hasMorePhotos = false
             selectedAssetIDs = []
+            activeDownloadProgress = nil
             activeSession = nil
             activeTransport = nil
             await thumbnailService.clear()
@@ -155,6 +186,7 @@ final class AppModel: ObservableObject {
         photoAssets = []
         hasMorePhotos = false
         selectedAssetIDs = []
+        activeDownloadProgress = nil
         workflowState = .waitingForWifi
         lastSummary = "当前会话已清除。"
         appendLog("当前会话已清除。")
@@ -222,14 +254,75 @@ final class AppModel: ObservableObject {
 
         isWorking = true
         workflowState = .downloading
+        activeDownloadProgress = nil
         appendLog("正在下载 \(targets.count) 个文件...")
+        defer {
+            activeDownloadProgress = nil
+            isWorking = false
+        }
 
         var exportFailures: [String] = []
 
         do {
-            for asset in targets {
-                let data = try await transport.downloadAsset(asset, from: session)
-                var record = try await downloadStore.store(data: data, from: asset)
+            for (index, asset) in targets.enumerated() {
+                let itemNumber = index + 1
+                let totalItemCount = targets.count
+                appendLog("开始下载 \(asset.fileName)（\(itemNumber)/\(totalItemCount)）")
+
+                updateActiveDownloadProgress(
+                    for: asset,
+                    itemNumber: itemNumber,
+                    totalItemCount: totalItemCount,
+                    transportProgress: DownloadTransferProgress(
+                        bytesTransferred: 0,
+                        totalBytes: max(asset.byteSize, 0),
+                        resumedCount: 0,
+                        currentOffset: 0,
+                        chunkSize: 0
+                    )
+                )
+
+                let temporaryURL = try await transport.downloadAssetToTemporaryFile(
+                    asset,
+                    from: session
+                ) { progress in
+                    await MainActor.run {
+                        self.updateActiveDownloadProgress(
+                            for: asset,
+                            itemNumber: itemNumber,
+                            totalItemCount: totalItemCount,
+                            transportProgress: progress
+                        )
+                    }
+                }
+                var didPersistDownload = false
+                defer {
+                    if !didPersistDownload {
+                        try? FileManager.default.removeItem(at: temporaryURL)
+                    }
+                }
+
+                let measuredSize = Self.fileSize(at: temporaryURL)
+                let finalSize = measuredSize > 0
+                    ? measuredSize
+                    : max(activeDownloadProgress?.totalBytes ?? 0, max(asset.byteSize, 0))
+                let fallbackChunkSize = max(activeDownloadProgress?.chunkSize ?? 0, finalSize)
+                updateActiveDownloadProgress(
+                    for: asset,
+                    itemNumber: itemNumber,
+                    totalItemCount: totalItemCount,
+                    transportProgress: DownloadTransferProgress(
+                        bytesTransferred: finalSize,
+                        totalBytes: finalSize,
+                        resumedCount: activeDownloadProgress?.resumedCount ?? 0,
+                        currentOffset: finalSize,
+                        chunkSize: fallbackChunkSize
+                    ),
+                    fallbackToAssetByteSize: false
+                )
+
+                var record = try await downloadStore.storeDownloadedFile(at: temporaryURL, from: asset)
+                didPersistDownload = true
                 appendLog("已将 \(record.fileName) 保存到应用存储。")
 
                 if autoExportToPhotoLibrary {
@@ -257,8 +350,6 @@ final class AppModel: ObservableObject {
         } catch {
             handle(error)
         }
-
-        isWorking = false
     }
 
     func refreshDownloads() async {
@@ -318,6 +409,16 @@ final class AppModel: ObservableObject {
         return config
     }
 
+    static func mergePhotoAssetsPreservingCameraOrder(
+        existing: [PhotoAsset],
+        incoming: [PhotoAsset],
+        resetTraversal: Bool
+    ) -> [PhotoAsset] {
+        let mergedAssets = resetTraversal ? incoming : (existing + incoming)
+        var seenRemoteIdentifiers = Set<String>()
+        return mergedAssets.filter { seenRemoteIdentifiers.insert($0.remoteIdentifier).inserted }
+    }
+
     private func loadPhotos(resetTraversal: Bool) async throws {
         guard let session = activeSession, let transport = activeTransport else {
             throw CameraAppError.notConnected
@@ -337,15 +438,15 @@ final class AppModel: ObservableObject {
         )
         await appendTransportDiagnostics(from: transport)
 
-        var mergedAssets = resetTraversal ? page.assets : (photoAssets + page.assets)
-        var seenRemoteIdentifiers = Set<String>()
-        mergedAssets = mergedAssets.filter { seenRemoteIdentifiers.insert($0.remoteIdentifier).inserted }
-
-        photoAssets = mergedAssets.sorted { $0.captureDate > $1.captureDate }
+        photoAssets = Self.mergePhotoAssetsPreservingCameraOrder(
+            existing: photoAssets,
+            incoming: page.assets,
+            resetTraversal: resetTraversal
+        )
         hasMorePhotos = page.hasMore
 
         if resetTraversal {
-            selectedAssetIDs = Set(photoAssets.prefix(2).map(\.id))
+            selectedAssetIDs.removeAll()
         }
 
         workflowState = .connected
@@ -376,6 +477,7 @@ final class AppModel: ObservableObject {
     }
 
     private func handle(_ error: Error) {
+        activeDownloadProgress = nil
         workflowState = .error
         let title = "出现问题"
         let message = userFacingMessage(for: error)
@@ -409,5 +511,33 @@ final class AppModel: ObservableObject {
         for message in messages where !message.isEmpty {
             appendLog("诊断: \(message)")
         }
+    }
+
+    private func updateActiveDownloadProgress(
+        for asset: PhotoAsset,
+        itemNumber: Int,
+        totalItemCount: Int,
+        transportProgress: DownloadTransferProgress,
+        fallbackToAssetByteSize: Bool = true
+    ) {
+        let knownTotal = fallbackToAssetByteSize ? max(asset.byteSize, 0) : 0
+        let resolvedTotal = max(max(transportProgress.totalBytes, transportProgress.bytesTransferred), knownTotal)
+        let resolvedTransferred = min(max(transportProgress.bytesTransferred, 0), resolvedTotal)
+        let resolvedOffset = min(max(transportProgress.currentOffset, resolvedTransferred), resolvedTotal)
+
+        activeDownloadProgress = ActiveDownloadProgress(
+            fileName: asset.fileName,
+            currentItemNumber: itemNumber,
+            totalItemCount: totalItemCount,
+            bytesTransferred: resolvedTransferred,
+            totalBytes: resolvedTotal,
+            resumedCount: max(transportProgress.resumedCount, 0),
+            currentOffset: resolvedOffset,
+            chunkSize: max(transportProgress.chunkSize, 0)
+        )
+    }
+
+    private static func fileSize(at url: URL) -> Int64 {
+        ((try? FileManager.default.attributesOfItem(atPath: url.path)[.size]) as? NSNumber)?.int64Value ?? 0
     }
 }

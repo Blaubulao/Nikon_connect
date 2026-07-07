@@ -71,6 +71,51 @@ actor ExperimentalNikonTransport: CameraTransport {
         }
     }
 
+    func downloadAssetToTemporaryFile(_ asset: PhotoAsset, from session: CameraSession) async throws -> URL {
+        try await downloadAssetToTemporaryFile(asset, from: session, onProgress: nil)
+    }
+
+    func downloadAssetToTemporaryFile(
+        _ asset: PhotoAsset,
+        from session: CameraSession,
+        onProgress: (@Sendable (DownloadTransferProgress) async -> Void)?
+    ) async throws -> URL {
+        guard let ptpSession = self.session else {
+            throw CameraAppError.notConnected
+        }
+
+        guard let handle = UInt32(asset.remoteIdentifier) else {
+            throw CameraAppError.unsupportedOperation("无法解析相机对象句柄：\(asset.remoteIdentifier)")
+        }
+
+        do {
+            let expectedSize = max(asset.byteSize, 0)
+            if let onProgress {
+                await onProgress(
+                    DownloadTransferProgress(
+                        bytesTransferred: 0,
+                        totalBytes: expectedSize,
+                        resumedCount: 0,
+                        currentOffset: 0,
+                        chunkSize: 0
+                    )
+                )
+            }
+
+            return try await ptpSession.downloadAssetToTemporaryFile(
+                handle: handle,
+                suggestedFileName: asset.fileName,
+                onProgress: { progress in
+                    if let onProgress {
+                        await onProgress(progress)
+                    }
+                }
+            )
+        } catch {
+            throw mapError(error)
+        }
+    }
+
     func downloadThumbnail(_ asset: PhotoAsset, from session: CameraSession) async throws -> Data? {
         guard let ptpSession = self.session else {
             throw CameraAppError.notConnected

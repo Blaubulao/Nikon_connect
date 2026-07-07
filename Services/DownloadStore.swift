@@ -49,6 +49,38 @@ actor DownloadStore {
         return record
     }
 
+    func storeDownloadedFile(at sourceURL: URL, from asset: PhotoAsset) throws -> DownloadRecord {
+        let directory = try downloadsDirectoryURL()
+        let destination = uniqueDestinationURL(in: directory, fileName: asset.fileName)
+
+        do {
+            try fileManager.moveItem(at: sourceURL, to: destination)
+        } catch {
+            throw CameraAppError.fileSystemFailure("无法移动下载文件：\(error.localizedDescription)")
+        }
+
+        let byteSize: Int64
+        do {
+            let attributes = try fileManager.attributesOfItem(atPath: destination.path)
+            byteSize = (attributes[.size] as? NSNumber)?.int64Value ?? Int64(asset.byteSize)
+        } catch {
+            throw CameraAppError.fileSystemFailure("无法读取下载文件大小：\(error.localizedDescription)")
+        }
+
+        let record = DownloadRecord(
+            sourceAssetIdentifier: asset.remoteIdentifier,
+            fileName: destination.lastPathComponent,
+            savedURL: destination,
+            byteSize: byteSize,
+            exportedToPhotoLibrary: false
+        )
+
+        var manifest = try loadManifest()
+        manifest.append(record)
+        try saveManifest(manifest)
+        return record
+    }
+
     func markExported(recordID: UUID) throws -> DownloadRecord {
         var manifest = try loadManifest()
         guard let index = manifest.firstIndex(where: { $0.id == recordID }) else {

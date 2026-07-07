@@ -9,7 +9,7 @@ struct RootTabView: View {
                 ConnectionSetupView(model: model)
             }
             .tabItem {
-                Label("连接", systemImage: "wifi")
+                Label("相机", systemImage: "camera")
             }
 
             NavigationStack {
@@ -23,7 +23,7 @@ struct RootTabView: View {
                 DownloadsView(model: model)
             }
             .tabItem {
-                Label("下载", systemImage: "arrow.down.circle")
+                Label("下载", systemImage: "tray.and.arrow.down")
             }
 
             NavigationStack {
@@ -37,25 +37,28 @@ struct RootTabView: View {
             if model.isWorking {
                 HStack(spacing: 10) {
                     ProgressView()
-                        .tint(.primary)
-                    Text(model.workflowState.title)
+                        .tint(AppTheme.accentStrong)
+                    Text(model.workingStatusTitle)
                         .font(.system(.subheadline, design: .rounded).weight(.medium))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(AppTheme.ink)
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 10)
-                .background(.ultraThinMaterial)
+                .background(AppTheme.surface, in: Capsule())
                 .clipShape(Capsule())
                 .overlay(
                     Capsule()
-                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                        .strokeBorder(AppTheme.border, lineWidth: 1)
                 )
-                .shadow(color: Color.black.opacity(0.12), radius: 8, x: 0, y: 4)
+                .shadow(color: AppTheme.shadow, radius: 10, x: 0, y: 4)
                 .padding(.top, 12)
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: model.isWorking)
+        .tint(AppTheme.accentStrong)
+        .background(AppTheme.canvas.ignoresSafeArea())
+        .applyTabBarChrome()
         .alert(item: $model.alertContext) { alert in
             Alert(
                 title: Text(alert.title),
@@ -63,5 +66,18 @@ struct RootTabView: View {
                 dismissButton: .default(Text("确定"))
             )
         }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func applyTabBarChrome() -> some View {
+        #if os(iOS)
+        self
+            .toolbarBackground(AppTheme.surface, for: .tabBar)
+            .toolbarBackground(.visible, for: .tabBar)
+        #else
+        self
+        #endif
     }
 }

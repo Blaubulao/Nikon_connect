@@ -2,6 +2,18 @@ import XCTest
 @testable import NikonConnectIOS
 
 final class MockNikonTransportTests: XCTestCase {
+    actor ProgressRecorder {
+        private var values: [DownloadTransferProgress] = []
+
+        func append(_ progress: DownloadTransferProgress) {
+            values.append(progress)
+        }
+
+        func snapshot() -> [DownloadTransferProgress] {
+            values
+        }
+    }
+
     func testMockTransportReturnsAssetsAndData() async throws {
         let transport = MockNikonTransport()
         let config = CameraConnectionConfig.default
@@ -26,5 +38,24 @@ final class MockNikonTransportTests: XCTestCase {
 
         let data = try await transport.downloadAsset(firstPage.assets[0], from: session)
         XCTAssertFalse(data.isEmpty)
+
+        let progressRecorder = ProgressRecorder()
+        let temporaryURL = try await transport.downloadAssetToTemporaryFile(
+            firstPage.assets[0],
+            from: session
+        ) { progress in
+            await progressRecorder.append(progress)
+        }
+        defer { try? FileManager.default.removeItem(at: temporaryURL) }
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: temporaryURL.path))
+        let streamedData = try Data(contentsOf: temporaryURL)
+        XCTAssertEqual(streamedData, data)
+
+        let progressUpdates = await progressRecorder.snapshot()
+        XCTAssertGreaterThanOrEqual(progressUpdates.count, 2)
+        XCTAssertEqual(progressUpdates.first?.bytesTransferred, 0)
+        XCTAssertEqual(progressUpdates.first?.currentOffset, 0)
+        XCTAssertEqual(progressUpdates.last?.bytesTransferred, progressUpdates.last?.totalBytes)
     }
 }

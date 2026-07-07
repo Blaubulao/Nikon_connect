@@ -29,15 +29,11 @@ struct StatusBadgeView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .foregroundStyle(foregroundStyle)
-        .background(
-            Capsule()
-                .fill(backgroundStyle)
-        )
+        .background(backgroundStyle, in: Capsule())
         .overlay(
             Capsule()
-                .strokeBorder(foregroundStyle.opacity(0.20), lineWidth: 1)
+                .strokeBorder(foregroundStyle.opacity(0.18), lineWidth: 1)
         )
-        .shadow(color: foregroundStyle.opacity(0.1), radius: 3, x: 0, y: 1.5)
     }
 
     private var isWorkingState: Bool {
@@ -50,19 +46,10 @@ struct StatusBadgeView: View {
     }
 
     private var foregroundStyle: Color {
-        switch state {
-        case .connected:
-            return Color(red: 0.13, green: 0.75, blue: 0.42) // Emerald Green
-        case .error:
-            return Color(red: 0.92, green: 0.26, blue: 0.35) // Crimson Red
-        case .waitingForWifi:
-            return Color(red: 0.20, green: 0.50, blue: 0.98) // Tech Blue
-        default:
-            return Color(red: 0.98, green: 0.65, blue: 0.11) // Amber Orange
-        }
+        AppTheme.workflowColor(for: state)
     }
 
     private var backgroundStyle: Color {
-        foregroundStyle.opacity(0.08)
+        foregroundStyle.opacity(0.10)
     }
 }
