@@ -49,30 +49,14 @@ final class ConnectionViewModel: ObservableObject {
     }
 
     var connectionTargetDescription: String {
-        switch transportMode {
-        case .demo:
-            return "使用内置样例数据"
-        case .experimentalNikon:
-            let host = transportMode.defaultHost ?? hostInput.trimmingCharacters(in: .whitespacesAndNewlines)
-            return "\(host):\(transportMode.defaultPort)"
-        }
+        let host = transportMode.defaultHost ?? hostInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        return "\(host):\(transportMode.defaultPort)"
     }
 
     func bootstrapIfNeeded() async {
         guard !didBootstrap else { return }
         didBootstrap = true
         shell.appendLog("应用已初始化。")
-    }
-
-    func setTransportMode(_ newMode: CameraTransportMode) {
-        transportMode = newMode
-        if let defaultHost = newMode.defaultHost {
-            hostInput = defaultHost
-        }
-        portInput = String(newMode.defaultPort)
-
-        persistConfiguration()
-        shell.appendLog("传输模式已切换为\(newMode.title)。")
     }
 
     func setAutoExportToPhotoLibrary(_ isEnabled: Bool) {
@@ -82,7 +66,7 @@ final class ConnectionViewModel: ObservableObject {
 
     @discardableResult
     func connect() async -> Bool {
-        let transport = transportFactory.makeTransport(for: transportMode)
+        let transport = transportFactory.makeTransport()
 
         do {
             let config = try validatedConfig()
@@ -106,17 +90,20 @@ final class ConnectionViewModel: ObservableObject {
             await appendTransportDiagnostics(from: transport)
             isWorking = false
             shell.setGlobalActivityTitle(nil)
+            Haptics.notification(.success)
             return true
         } catch {
             await appendTransportDiagnostics(from: transport)
             handle(error)
             isWorking = false
             shell.setGlobalActivityTitle(nil)
+            Haptics.notification(.error)
             return false
         }
     }
 
     func disconnect() {
+        Haptics.impact(.medium)
         let transport = sessionCoordinator.clearSession()
         activeSession = nil
         workflowState = .waitingForWifi
@@ -147,7 +134,7 @@ final class ConnectionViewModel: ObservableObject {
             autoExportToPhotoLibrary: autoExportToPhotoLibrary
         )
 
-        if config.transportMode != .demo && config.normalizedHost.isEmpty {
+        if config.normalizedHost.isEmpty {
             throw CameraAppError.missingHost
         }
 

@@ -1,30 +1,34 @@
 import SwiftUI
 
+@MainActor
 struct StatusBadgeView: View {
     let state: CameraWorkflowState
     @State private var isPulsing = false
 
     var body: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 6) {
             Circle()
                 .fill(foregroundStyle)
-                .frame(width: 5, height: 5)
+                .frame(width: 6, height: 6)
                 .scaleEffect(isWorkingState && isPulsing ? 1.25 : 1)
                 .opacity(isWorkingState && isPulsing ? 0.45 : 1)
-                .onAppear {
-                    guard isWorkingState else { return }
-                    withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
-                        isPulsing = true
-                    }
-                }
 
             Label(state.title, systemImage: state.symbolName)
-                .font(.system(.caption2, design: .rounded).weight(.semibold))
+                .font(.system(.footnote, design: .rounded).weight(.semibold))
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
         .foregroundStyle(foregroundStyle)
         .background(foregroundStyle.opacity(0.08), in: Capsule())
+        .task(id: state) {
+            await MainActor.run {
+                isPulsing = false
+                guard isWorkingState else { return }
+                withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+                    isPulsing = true
+                }
+            }
+        }
     }
 
     private var isWorkingState: Bool {

@@ -9,7 +9,7 @@ struct CameraConnectionConfig: Codable, Equatable, Sendable {
     static let `default` = CameraConnectionConfig(
         host: CameraTransportMode.experimentalNikon.defaultHost ?? "",
         port: CameraTransportMode.experimentalNikon.defaultPort,
-        transportMode: .demo,
+        transportMode: .experimentalNikon,
         autoExportToPhotoLibrary: false
     )
 

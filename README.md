@@ -1,38 +1,47 @@
-# Nikon Connect iOS
+# Camera Connect iOS (Nikon, Sony, Canon, Fujifilm)
 
-一个面向尼康（Nikon）相机（如 Z5）第一阶段 MVP 的 **iOS 原生应用**，用于在手动连接相机 Wi-Fi 热点后，进行快速的照片浏览与下载。本项目通过 Swift 原生实现标准 PTP/IP 协议及双通道 TCP 通信，提供比官方 SnapBridge 更轻量、稳定的照片下载体验。
+一个专门为摄影师打造的 **iOS 原生照片传输应用**。采用极简、克制的 **Claude-style 浅色设计**，通过标准 PTP/IP 协议及双通道 TCP 通信，实现在手机连接相机 Wi-Fi 热点后，快速、稳定地浏览与批量下载相机照片。
 
 ---
 
-## 🌟 主要功能
+## ✨ 核心特性与设计规范
 
-*   **双通道 PTP/IP 握手**: Swift 原生实现的命令通道（Command）与事件通道（Event）握手，保持与相机的稳定长连接。
-*   **会话层自动化控制**: 支持获取设备信息、读取存储介质、分批分页遍历相机对象（照片/视频）句柄并拉取元数据。
-*   **异步缩略图加载与缓存**: 内置高性能缩略图服务，实现流畅的网格浏览。
-*   **沙盒下载与系统相册同步**: 支持安全保存至 iOS 沙盒目录，并可配置自动或手动导出至 iOS 系统相册（Photos Library）。
-*   **Nikon 专属 UI 主题**: 融入尼康经典黑黄配色、微光动效状态角标、玻璃模糊分栏器，以及开发者专属的高对比度终端日志（Terminal Log）查看器。
-*   **多种传输模式**:
-    *   **演示模式 (Demo)**: 使用本地内置样例数据进行跑通与展示。
-    *   **尼康实验模式 (Experimental)**: 使用相机默认 Wi-Fi 热点 IP `192.168.1.1:15740` 进行真实物理连接。
+### 🎨 Claude 风格极简界面 (Claude-style Aesthetic)
+*   **温润背景**：全局采用暖白色底色（`#F9F9F8`），搭配无描边的阴影卡片层级，最大程度减少界面中的工程噪音，聚焦摄影作品本身。
+*   **高对比度操作**：主按钮采用极致黑圆角胶囊（Capsule），辅以温润的琥珀金（Amber Gold）作为核心强调色。
+
+### 🪄 物理级交互与微动效 (Micro-interactions)
+*   **设备滚动切换标题**：未连接状态下，首屏主标题自动在 **尼康、索尼、佳能、富士** 品牌之间进行类似老虎机滚轮的上下滚动淡入淡出动画，昭示未来多品牌整合生态。
+*   **镜头呼吸光晕 (`LensGlowView`)**：搜索相机或建立连接时，黄金分割视觉中心的镜头图标会带有波纹放大的琥珀色呼吸光圈动效；连接成功后则平滑转为常亮绿。
+*   **照片扫光骨架屏 (`ShimmerView`)**：相机缩略图加载中时，原位展现细腻的扫光动效；数据传输完毕后以 `0.35s` 的渐现动画优雅浮现，完全消除加载时的闪烁感。
+*   **全机触感反馈 (`Haptics`)**：点击主副按钮、勾选照片多选、连接成功或失败时，手机线性马达会触发不同层级的触觉微震（Medium/Light/Success/Error），带来扎实的物理操作回馈。
+
+---
+
+## 🗺️ 多品牌相机集成路线 (Roadmap)
+
+应用底层采用通用 PTP/IP 协议设计，未来将全量支持主流相机品牌：
+
+*   [x] **Nikon (实验性物理连接已就绪)**：通过相机的 Wi-Fi 热点默认 IP `192.168.1.1:15740` 建立稳定长连接，拉取元数据和批量下载。
+*   [ ] **Sony (规划中)**：支持索尼 Wi-Fi 的 PTP/IP 通信握手协议。
+*   [ ] **Canon (规划中)**：支持佳能 PTP over TCP 自定义配对及数据通道。
+*   [ ] **Fujifilm (规划中)**：支持富士相机的专属套接字握手机制与浏览协议。
 
 ---
 
 ## 📂 项目结构
 
 ```text
-├── App/                       # App 入口、模型及全局 Tab
-├── Domain/                    # 业务领域实体模型与错误定义
+├── App/                       # App 入口、全局配色、微badge组件
+├── Domain/                    # 实体模型（状态、配置、照片对象定义）
 ├── Features/                  # SwiftUI 业务界面
-│   ├── ConnectionSetup/       # 相机连接与状态控制
-│   ├── PhotoBrowser/          # 相册网格浏览与大图查看器
-│   ├── Downloads/             # 本地已下载及相册导出历史
-│   └── Settings/              # 偏好设置及全局日志
-├── Infrastructure/            # 系统底层封装
-├── Services/                  # PTP/IP 编解码、TCP套接字及存储核心服务
-├── Resources/                 # 资源资产及 Info.plist
-├── Tests/                     # 单元测试模块
-├── scripts/                   # 辅助脚本
-└── project.yml                # XcodeGen 项目描述配置文件
+│   ├── ConnectionSetup/       # 相机连接与状态控制（含 LensGlowView）
+│   ├── PhotoBrowser/          # 照片网格浏览与大图查看（含 Shimmer 扫光）
+│   ├── Downloads/             # 已下载历史（带 Trailing 刷新控制）
+│   └── Settings/              # 偏好设置与运行记录
+├── Shared/                    # 共享按钮、卡片、马达震动等高频组件
+├── Infrastructure/            # 底层 TCP 套接字封装
+└── Services/                  # PTP/IP 核心会话与编解码服务
 ```
 
 ---
@@ -40,54 +49,24 @@
 ## 🛠️ 构建与运行
 
 ### 环境要求
-*   **macOS** (支持 Apple Silicon 架构)
+*   **macOS Sequoia (15.0+)**
 *   **Xcode 16.0+**
-*   **XcodeGen** (用于生成 `.xcodeproj` 描述文件，版本建议 `2.45.0+`)
+*   **XcodeGen** (建议版本 `2.45.0+`，用于自动生成 `.xcodeproj`)
 
 ### 1. 生成项目工程
-在主工程根目录执行以下命令生成 `.xcodeproj` 文件：
+在主工程根目录下，通过本地 Xcode 环境变量运行项目生成脚本：
 ```bash
 ./scripts/generate_project.sh
 ```
 
-### 2. 运行与验证
-*   **打开项目**:
-    ```bash
-    open NikonConnectIOS.xcodeproj
-    ```
-*   **本地类型检查**:
-    ```bash
-    ./scripts/typecheck_macos.sh
-    ```
-*   **运行测试**:
-    ```bash
-    # 可在 Xcode 界面上直接运行 Test，或通过命令行测试
-    DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer \
-      xcodebuild -project NikonConnectIOS.xcodeproj \
-      -scheme NikonConnectIOS \
-      -destination 'platform=iOS Simulator,name=iPhone 16' \
-      test
-    ```
+### 2. 本地类型检查 (Type Check)
+本地利用 macOS Target 进行基础自检（忽略 SwiftUI 缺少 macOS SDK 特性导致的不可用警告）：
+```bash
+DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer ./scripts/typecheck_macos.sh
+```
 
----
-
-## 📡 物理连接与测试步骤
-
-1.  **连接 Wi-Fi**:
-    *   在尼康相机上开启 Wi-Fi 功能（手动开启 Wi-Fi 连接）。
-    *   在 iPhone 的 **系统设置 > Wi-Fi** 中找到相机热点并建立连接。
-2.  **启动连接**:
-    *   打开 **Nikon Connect** App。
-    *   在“相机”页面将模式选择为 **尼康实验模式**。
-    *   点击 **连接相机** 按钮，等待双通道握手完成（状态转为绿色的“已连接”）。
-3.  **浏览与下载**:
-    *   切换到“照片”页面，App 会自动发起句柄遍历。
-    *   点击照片查看大图，你可以多选照片并点击底部的 **开始下载** 保存至 App 存储或同步至系统相册。
-
----
-
-## 🛠️ 辅助脚本说明
-
-*   `generate_project.sh`: 快速生成 Xcode 描述工程文件，避免团队开发中频繁产生 pbxproj 冲突。
-*   `typecheck_macos.sh`: 本地利用 macOS SDK 对 Swift 文件进行类型检查与并发状态自检。
-*   `monitor_nikon_camera_wifi.sh`: 用于被动监听本机 Wi-Fi 网口，可检查相机网络状态及路由状态，带 `--ping` 可测试至 `192.168.1.1` 的响应延迟。
+### 3. 打开并调试
+```bash
+open NikonConnectIOS.xcodeproj
+```
+建议使用 **iOS 17.0+ 真机** 进行调试，可以体验完整的线性马达物理触觉反馈 (Haptics)。

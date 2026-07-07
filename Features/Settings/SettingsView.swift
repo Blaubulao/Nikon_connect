@@ -2,7 +2,6 @@ import SwiftUI
 
 struct SettingsView: View {
     let autoExportToPhotoLibrary: Bool
-    let transportMode: CameraTransportMode
     let portInput: String
     let hostInput: String
     let activityLog: [LogEntry]
@@ -10,11 +9,12 @@ struct SettingsView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 20) {
+            LazyVStack(alignment: .leading, spacing: 24) {
                 preferencesSection
+                defaultsSection
                 supportSection
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 20)
             .padding(.vertical, 20)
         }
         .background(AppTheme.canvas.ignoresSafeArea())
@@ -23,20 +23,12 @@ struct SettingsView: View {
     }
 
     private var preferencesSection: some View {
-        CustomCard(title: "偏好设置") {
-            VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("自动导出到系统相册")
-                        .font(.system(.headline, design: .rounded).weight(.bold))
-                        .foregroundStyle(AppTheme.ink)
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "下载行为")
 
-                    Text("开启后，下载完成会继续尝试写入 iOS 系统相册；关闭时仅保留在应用本地。")
-                        .font(.system(.footnote, design: .rounded))
-                        .foregroundStyle(AppTheme.inkMuted)
-                }
-
+            CustomCard {
                 Toggle(
-                    "允许自动导出",
+                    "允许自动导出到系统相册",
                     isOn: Binding(
                         get: { autoExportToPhotoLibrary },
                         set: { onSetAutoExportToPhotoLibrary($0) }
@@ -48,78 +40,79 @@ struct SettingsView: View {
         }
     }
 
-    private var supportSection: some View {
-        CustomCard(title: "高级与支持") {
-            VStack(alignment: .leading, spacing: 14) {
-                DisclosureGroup("连接默认值") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        GridRowItem(label: "模式", value: transportMode.title, systemImage: "network")
-                        GridRowItem(
-                            label: "端口",
-                            value: portInput.isEmpty ? String(transportMode.defaultPort) : portInput,
-                            systemImage: "number.square"
-                        )
-                        GridRowItem(
-                            label: "地址",
-                            value: hostInput.isEmpty ? "未设置" : hostInput,
-                            systemImage: "ipad.and.iphone"
-                        )
-                    }
-                    .padding(.top, 12)
+    private var defaultsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "连接默认值")
+
+            CustomCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    GridRowItem(label: "目标地址", value: resolvedTarget, systemImage: "network")
+                    GridRowItem(label: "下载后处理", value: exportSummary, systemImage: "photo.badge.arrow.down")
                 }
-                .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                .tint(AppTheme.ink)
+            }
+        }
+    }
 
-                if !activityLog.isEmpty {
-                    Divider()
+    private var supportSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "支持与版本")
 
-                    DisclosureGroup("调试记录") {
-                        VStack(alignment: .leading, spacing: 12) {
-                            ForEach(activityLog.prefix(12)) { entry in
-                                HStack(alignment: .top, spacing: 8) {
-                                    Circle()
-                                        .fill(logColor(for: entry.message))
-                                        .frame(width: 6, height: 6)
-                                        .padding(.top, 5)
-
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(entry.message)
-                                            .font(.system(.caption, design: .monospaced))
-                                            .foregroundStyle(textColor(for: entry.message))
-                                            .fixedSize(horizontal: false, vertical: true)
-
-                                        Text(Formatters.logTime(entry.timestamp))
-                                            .font(.system(.caption2, design: .monospaced))
-                                            .foregroundStyle(AppTheme.inkMuted.opacity(0.7))
-                                    }
-                                }
-                            }
+            CustomCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    DisclosureGroup("关于此版本") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Nikon Connect v0.1.0")
+                                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                                .foregroundStyle(AppTheme.ink)
                         }
                         .padding(.top, 12)
                     }
                     .font(.system(.subheadline, design: .rounded).weight(.semibold))
                     .tint(AppTheme.ink)
-                }
 
-                Divider()
+                    if !activityLog.isEmpty {
+                        Divider()
 
-                DisclosureGroup("关于此版本") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Nikon Connect MVP v0.1.0")
-                            .font(.system(.subheadline, design: .rounded).weight(.bold))
-                            .foregroundStyle(AppTheme.ink)
+                        DisclosureGroup("运行记录") {
+                            VStack(alignment: .leading, spacing: 12) {
+                                ForEach(activityLog.prefix(12)) { entry in
+                                    HStack(alignment: .top, spacing: 8) {
+                                        Circle()
+                                            .fill(logColor(for: entry.message))
+                                            .frame(width: 6, height: 6)
+                                            .padding(.top, 5)
 
-                        Text("当前版本支持演示模式与 Nikon 手动 Wi-Fi 连接，重点解决照片浏览与下载这条主链路。")
-                            .font(.system(.footnote, design: .rounded))
-                            .foregroundStyle(AppTheme.inkMuted)
-                            .fixedSize(horizontal: false, vertical: true)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(entry.message)
+                                                .font(.system(.caption, design: .monospaced))
+                                                .foregroundStyle(textColor(for: entry.message))
+                                                .fixedSize(horizontal: false, vertical: true)
+
+                                            Text(Formatters.logTime(entry.timestamp))
+                                                .font(.system(.caption2, design: .monospaced))
+                                                .foregroundStyle(AppTheme.inkMuted.opacity(0.75))
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.top, 12)
+                        }
+                        .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                        .tint(AppTheme.ink)
                     }
-                    .padding(.top, 12)
                 }
-                .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                .tint(AppTheme.ink)
             }
         }
+    }
+
+    private var resolvedTarget: String {
+        let host = hostInput.isEmpty ? (CameraTransportMode.experimentalNikon.defaultHost ?? "192.168.1.1") : hostInput
+        let port = portInput.isEmpty ? String(CameraTransportMode.experimentalNikon.defaultPort) : portInput
+        return "\(host):\(port)"
+    }
+
+    private var exportSummary: String {
+        autoExportToPhotoLibrary ? "下载后同步到系统相册" : "仅保留在应用本地"
     }
 
     private func logColor(for msg: String) -> Color {

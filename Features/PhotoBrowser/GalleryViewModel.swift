@@ -11,7 +11,8 @@ final class GalleryViewModel: ObservableObject {
     private let thumbnailService: any AssetThumbnailServing
     private let sessionCoordinator: CameraSessionCoordinator
     private let shell: AppShellViewModel
-    private let photoPageSize = 60
+    private let initialPhotoPageSize = 30
+    private let additionalPhotoPageSize = 60
 
     init(
         thumbnailService: any AssetThumbnailServing,
@@ -126,12 +127,17 @@ final class GalleryViewModel: ObservableObject {
             await thumbnailService.clear()
         }
 
-        shell.appendLog(resetTraversal ? "正在读取首批照片..." : "正在继续读取照片...")
+        let pageSize = resetTraversal ? initialPhotoPageSize : additionalPhotoPageSize
+        shell.appendLog(
+            resetTraversal
+                ? "正在读取首批 \(pageSize) 张照片..."
+                : "正在继续读取更多照片（每次 \(pageSize) 张）..."
+        )
 
         let page = try await transport.fetchAssetsPage(
             for: session,
             resetTraversal: resetTraversal,
-            limit: photoPageSize
+            limit: pageSize
         )
         await appendTransportDiagnostics(from: transport)
 

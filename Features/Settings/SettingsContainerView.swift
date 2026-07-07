@@ -7,7 +7,6 @@ struct SettingsContainerView: View {
     var body: some View {
         SettingsView(
             autoExportToPhotoLibrary: connectionViewModel.autoExportToPhotoLibrary,
-            transportMode: connectionViewModel.transportMode,
             portInput: connectionViewModel.portInput,
             hostInput: connectionViewModel.hostInput,
             activityLog: shell.activityLog,

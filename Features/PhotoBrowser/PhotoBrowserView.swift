@@ -36,12 +36,12 @@ struct PhotoBrowserView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 16) {
+            LazyVStack(alignment: .leading, spacing: 24) {
                 overviewSection
                 contentSection
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 16)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 20)
         }
         .background(AppTheme.canvas.ignoresSafeArea())
         .navigationTitle("照片")
@@ -135,55 +135,48 @@ struct PhotoBrowserView: View {
     }
 
     private var overviewSection: some View {
-        CustomCard(title: "照片库") {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(overviewTitle)
-                            .font(.system(.title3, design: .rounded).weight(.bold))
-                            .foregroundStyle(AppTheme.ink)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                Text(overviewTitle)
+                    .font(.system(.title2, design: .rounded).weight(.bold))
+                    .foregroundStyle(AppTheme.ink)
 
-                        Text(overviewDescription)
-                            .font(.system(.subheadline, design: .rounded))
-                            .foregroundStyle(AppTheme.inkMuted)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                Spacer(minLength: 12)
 
-                    Spacer(minLength: 12)
-
-                    if hasMorePhotos {
-                        Text("分批读取")
-                            .font(.system(.caption2, design: .rounded).weight(.bold))
-                            .foregroundStyle(AppTheme.info)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 4)
-                            .background(AppTheme.info.opacity(0.08), in: Capsule())
-                    }
+                if hasMorePhotos {
+                    Text("分批读取")
+                        .font(.system(.caption2, design: .rounded).weight(.bold))
+                        .foregroundStyle(AppTheme.info)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(AppTheme.info.opacity(0.09), in: Capsule())
                 }
+            }
 
-                HStack(spacing: 8) {
-                    MetricTile(
-                        label: "已加载",
-                        value: "\(assets.count)",
-                        systemImage: "photo.on.rectangle",
-                        accent: AppTheme.info
-                    )
+            HStack(spacing: 12) {
+                MetricTile(
+                    label: "已加载",
+                    value: "\(assets.count)",
+                    systemImage: "photo.on.rectangle",
+                    accent: AppTheme.info
+                )
 
-                    MetricTile(
-                        label: "已选择",
-                        value: "\(selectedAssetsCount)",
-                        systemImage: "checkmark.circle",
-                        accent: AppTheme.accentStrong
-                    )
-                }
+                MetricTile(
+                    label: "已选择",
+                    value: "\(selectedAssetsCount)",
+                    systemImage: "checkmark.circle",
+                    accent: AppTheme.accentStrong
+                )
+            }
 
+            if activeSession != nil || !assets.isEmpty {
                 filterBar
             }
         }
     }
 
     private var filterBar: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 8) {
             ForEach(PreviewFilter.allCases) { filter in
                 let isSelected = activeFilter == filter
                 Button {
@@ -198,70 +191,51 @@ struct PhotoBrowserView: View {
                             .minimumScaleFactor(0.85)
                             .allowsTightening(true)
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 7)
-                    .frame(maxWidth: .infinity)
-                    .foregroundStyle(isSelected ? AppTheme.ink : AppTheme.inkMuted)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(isSelected ? AppTheme.accentSoft.opacity(0.75) : Color.clear)
-                    )
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .foregroundStyle(isSelected ? AppTheme.surface : AppTheme.inkMuted)
+                    .background(isSelected ? AppTheme.ink : AppTheme.surfaceMuted, in: Capsule())
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(4)
-        .background(AppTheme.controlBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(AppTheme.border, lineWidth: 0.5)
-        )
         .animation(.spring(response: 0.25, dampingFraction: 0.75), value: activeFilter)
     }
 
     private var assetGrid: some View {
         VStack(alignment: .leading, spacing: 14) {
-            LazyVGrid(columns: gridItems, spacing: 8) {
-                ForEach(filteredAssets) { asset in
-                    PhotoAssetGridTile(
-                        asset: asset,
-                        isSelected: selectedAssetIDs.contains(asset.id),
-                        loadThumbnail: loadThumbnail,
-                        onToggleSelection: {
-                            onToggleSelection(asset)
+            CustomCard {
+                LazyVGrid(columns: gridItems, spacing: 10) {
+                    ForEach(filteredAssets) { asset in
+                        PhotoAssetGridTile(
+                            asset: asset,
+                            isSelected: selectedAssetIDs.contains(asset.id),
+                            loadThumbnail: loadThumbnail,
+                            onToggleSelection: {
+                                onToggleSelection(asset)
+                            }
+                        )
+                        .onTapGesture {
+                            previewSeed = PhotoPreviewSeed(assetID: asset.id)
                         }
-                    )
-                    .onTapGesture {
-                        previewSeed = PhotoPreviewSeed(assetID: asset.id)
                     }
                 }
             }
 
             if hasMorePhotos {
-                Button(action: onLoadMorePhotos) {
-                    HStack {
-                        Spacer()
-                        Label("继续读取更多", systemImage: "rectangle.stack.badge.plus")
-                            .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                            .foregroundStyle(AppTheme.ink)
-                        Spacer()
-                    }
-                    .padding(.vertical, 12)
-                    .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(AppTheme.border, lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
-                .disabled(!canLoadMorePhotos)
+                SecondaryActionButton(
+                    title: "继续读取更多",
+                    systemImage: "rectangle.stack.badge.plus",
+                    isEnabled: canLoadMorePhotos,
+                    action: onLoadMorePhotos
+                )
             }
         }
     }
 
     private var emptyStateView: some View {
         CustomCard {
-            VStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .center, spacing: 16) {
                 Image(systemName: "photo.on.rectangle.angled")
                     .font(.system(size: 36, weight: .semibold))
                     .foregroundStyle(AppTheme.inkMuted.opacity(0.7))
@@ -278,18 +252,11 @@ struct PhotoBrowserView: View {
                     .multilineTextAlignment(.center)
 
                 if canRefreshPhotos {
-                    Button(action: onRefreshPhotos) {
-                        HStack {
-                            Spacer()
-                            Label("读取首批照片", systemImage: "arrow.clockwise")
-                                .font(.system(.subheadline, design: .rounded).weight(.bold))
-                                .foregroundStyle(AppTheme.ink)
-                            Spacer()
-                        }
-                        .padding(.vertical, 12)
-                        .background(AppTheme.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
+                    PrimaryActionButton(
+                        title: "读取首批照片",
+                        systemImage: "arrow.clockwise",
+                        action: onRefreshPhotos
+                    )
                 }
             }
             .frame(maxWidth: .infinity)
@@ -298,7 +265,7 @@ struct PhotoBrowserView: View {
 
     private var filteredEmptyStateView: some View {
         CustomCard {
-            VStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .center, spacing: 16) {
                 Image(systemName: "line.3.horizontal.decrease.circle")
                     .font(.system(size: 36, weight: .semibold))
                     .foregroundStyle(AppTheme.inkMuted.opacity(0.7))
@@ -314,32 +281,22 @@ struct PhotoBrowserView: View {
                     .foregroundStyle(AppTheme.inkMuted)
                     .multilineTextAlignment(.center)
 
-                HStack(spacing: 12) {
-                    Button("显示全部") {
-                        activeFilter = .all
-                    }
-                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(AppTheme.surfaceMuted)
-                    .clipShape(Capsule())
-                    .buttonStyle(.plain)
+                VStack(spacing: 10) {
+                    SecondaryActionButton(
+                        title: "显示全部",
+                        systemImage: "square.grid.2x2",
+                        action: {
+                            activeFilter = .all
+                        }
+                    )
 
                     if hasMorePhotos {
-                        Button(action: onLoadMorePhotos) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "plus.circle.fill")
-                                Text("继续读取更多")
-                            }
-                            .font(.system(.subheadline, design: .rounded).weight(.bold))
-                            .foregroundStyle(AppTheme.ink)
-                            .padding(.horizontal, 18)
-                            .padding(.vertical, 10)
-                            .background(AppTheme.accent)
-                            .clipShape(Capsule())
-                        }
-                        .disabled(!canLoadMorePhotos)
-                        .buttonStyle(.plain)
+                        PrimaryActionButton(
+                            title: "继续读取更多",
+                            systemImage: "plus.circle.fill",
+                            isEnabled: canLoadMorePhotos,
+                            action: onLoadMorePhotos
+                        )
                     }
                 }
             }
@@ -369,12 +326,12 @@ struct PhotoBrowserView: View {
                     Text("开始下载")
                         .font(.system(.subheadline, design: .rounded).weight(.bold))
                 }
-                .foregroundStyle(canDownloadSelection ? AppTheme.ink : AppTheme.inkMuted)
+                .foregroundStyle(canDownloadSelection ? AppTheme.surface : AppTheme.inkMuted)
                 .padding(.horizontal, 20)
                 .padding(.vertical, 12)
                 .background(
                     canDownloadSelection
-                    ? AppTheme.accent
+                    ? AppTheme.ink
                     : AppTheme.surfaceMuted,
                     in: Capsule()
                 )
@@ -385,13 +342,9 @@ struct PhotoBrowserView: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
         .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(AppTheme.border, lineWidth: 1)
-        )
         .padding(.horizontal, 16)
         .padding(.bottom, 10)
-        .shadow(color: AppTheme.shadow, radius: 10, x: 0, y: 4)
+        .shadow(color: AppTheme.shadow, radius: 16, x: 0, y: 8)
     }
 
     private func downloadProgressCard(_ progress: ActiveDownloadProgress) -> some View {
@@ -399,12 +352,8 @@ struct PhotoBrowserView: View {
             .padding(.horizontal, 18)
             .padding(.vertical, 14)
             .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(AppTheme.border, lineWidth: 1)
-            )
             .padding(.horizontal, 16)
-            .shadow(color: AppTheme.shadow, radius: 10, x: 0, y: 4)
+            .shadow(color: AppTheme.shadow, radius: 16, x: 0, y: 8)
             .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
@@ -416,21 +365,6 @@ struct PhotoBrowserView: View {
         return "等待相机连接"
     }
 
-    private var overviewDescription: String {
-        if activeSession == nil {
-            return "先完成连接，再回来浏览缩略图和批量下载。"
-        }
-
-        if assets.isEmpty {
-            return "连接已经就绪。现在只需要读取一次首批内容，就可以开始挑选照片。"
-        }
-
-        if selectedAssetsCount > 0 {
-            return "已选中的内容会出现在底部操作条里，确认后即可开始下载。"
-        }
-
-        return "轻点缩略图查看预览，右上角菜单可以调整网格并处理批量选择。"
-    }
 
     @ViewBuilder
     private func menuRow(title: String, isSelected: Bool) -> some View {
@@ -527,22 +461,25 @@ private struct PhotoAssetGridTile: View {
                 PhotoAssetThumbnailPreview(asset: asset, loadThumbnail: loadThumbnail)
                     .aspectRatio(Self.photoAspectRatio, contentMode: .fill)
                     .frame(minWidth: 0, maxWidth: .infinity)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                 HStack {
                     Text(asset.kind.badgeTitle)
-                        .font(.system(size: 8, weight: .bold))
+                        .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(asset.kind == .jpeg || asset.kind == .png ? AppTheme.ink : Color.white)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(kindBadgeColor.opacity(0.8))
-                        .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4)
+                        .background(kindBadgeColor.opacity(0.88))
+                        .clipShape(Capsule())
 
                     Spacer(minLength: 6)
                 }
                 .padding(6)
 
-                Button(action: onToggleSelection) {
+                Button(action: {
+                    Haptics.impact(.light)
+                    onToggleSelection()
+                }) {
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 20, weight: .medium))
                         .foregroundStyle(isSelected ? AppTheme.accentStrong : Color.white.opacity(0.9))
@@ -552,17 +489,17 @@ private struct PhotoAssetGridTile: View {
                 .padding(6)
             }
             .background(AppTheme.controlBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(
                         isSelected ? AppTheme.accentStrong : Color.clear,
-                        lineWidth: isSelected ? 2 : 0
+                        lineWidth: isSelected ? 1.5 : 0
                     )
             )
 
             Text(asset.fileName)
-                .font(.system(.caption2, design: .rounded).weight(.medium))
+                .font(.system(.footnote, design: .rounded).weight(.medium))
                 .foregroundStyle(AppTheme.ink)
                 .lineLimit(1)
                 .padding(.horizontal, 2)
@@ -588,32 +525,23 @@ private struct PhotoAssetThumbnailPreview: View {
 
     @State private var thumbnailData: Data?
     @State private var isLoading = false
+    @State private var isImageLoaded = false
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(placeholderBackground)
-
             if let image = thumbnailImage {
                 platformPreviewImage(image)
                     .resizable()
                     .scaledToFill()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                VStack(spacing: 8) {
-                    if isLoading {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Image(systemName: asset.kind.systemImageName)
-                            .font(.system(size: 26, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.92))
+                    .opacity(isImageLoaded ? 1.0 : 0.0)
+                    .onAppear {
+                        withAnimation(.easeOut(duration: 0.35)) {
+                            isImageLoaded = true
+                        }
                     }
-
-                    Text(asset.kind.badgeTitle)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.white.opacity(0.88))
-                }
+            } else {
+                ShimmerView()
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -631,22 +559,6 @@ private struct PhotoAssetThumbnailPreview: View {
         }
 
         return PlatformImage(data: thumbnailData)
-    }
-
-    private var placeholderBackground: LinearGradient {
-        let seed = asset.fileName.unicodeScalars.reduce(0) { partialResult, scalar in
-            (partialResult * 31 + Int(scalar.value)) % 360
-        }
-        let hue = Double(seed) / 360
-
-        return LinearGradient(
-            colors: [
-                Color(hue: hue, saturation: 0.15, brightness: 0.35),
-                Color(hue: (hue + 0.05).truncatingRemainder(dividingBy: 1), saturation: 0.20, brightness: 0.18)
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
     }
 }
 
@@ -750,7 +662,7 @@ private struct PhotoAssetPreviewScreen: View {
                     .foregroundStyle(.black)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color(red: 0.99, green: 0.85, blue: 0.05))
+                    .background(AppTheme.accent)
                     .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
 
                 Text("\(currentIndex + 1) / \(assets.count)")

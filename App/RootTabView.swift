@@ -1,10 +1,26 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct RootTabView: View {
     @ObservedObject var shell: AppShellViewModel
     @ObservedObject var connectionViewModel: ConnectionViewModel
     @ObservedObject var galleryViewModel: GalleryViewModel
     @ObservedObject var downloadViewModel: DownloadManagerViewModel
+
+    init(
+        shell: AppShellViewModel,
+        connectionViewModel: ConnectionViewModel,
+        galleryViewModel: GalleryViewModel,
+        downloadViewModel: DownloadManagerViewModel
+    ) {
+        self.shell = shell
+        self.connectionViewModel = connectionViewModel
+        self.galleryViewModel = galleryViewModel
+        self.downloadViewModel = downloadViewModel
+        configureTabBarAppearance()
+    }
 
     var body: some View {
         TabView {
@@ -58,13 +74,10 @@ struct RootTabView: View {
                         .foregroundStyle(AppTheme.ink)
                 }
                 .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(.thinMaterial, in: Capsule())
-                .overlay(
-                    Capsule()
-                        .strokeBorder(AppTheme.border, lineWidth: 0.5)
-                )
-                .padding(.top, 10)
+                .padding(.vertical, 9)
+                .background(AppTheme.surface, in: Capsule())
+                .shadow(color: AppTheme.shadow, radius: 14, x: 0, y: 6)
+                .padding(.top, 12)
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
@@ -89,8 +102,21 @@ private extension View {
         self
             .toolbarBackground(AppTheme.surface, for: .tabBar)
             .toolbarBackground(.visible, for: .tabBar)
+            .toolbarColorScheme(.light, for: .tabBar)
         #else
         self
         #endif
     }
+}
+
+private func configureTabBarAppearance() {
+    #if canImport(UIKit)
+    let appearance = UITabBarAppearance()
+    appearance.configureWithOpaqueBackground()
+    appearance.backgroundColor = UIColor(AppTheme.surface)
+    appearance.shadowColor = UIColor(AppTheme.separator)
+    UITabBar.appearance().standardAppearance = appearance
+    UITabBar.appearance().scrollEdgeAppearance = appearance
+    UITabBar.appearance().unselectedItemTintColor = UIColor(AppTheme.inkMuted)
+    #endif
 }
