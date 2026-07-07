@@ -5,35 +5,26 @@ struct StatusBadgeView: View {
     @State private var isPulsing = false
 
     var body: some View {
-        HStack(spacing: 6) {
-            if isWorkingState {
-                Circle()
-                    .fill(foregroundStyle)
-                    .frame(width: 6, height: 6)
-                    .scaleEffect(isPulsing ? 1.4 : 0.8)
-                    .opacity(isPulsing ? 0.3 : 1.0)
-                    .onAppear {
-                        withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
-                            isPulsing = true
-                        }
+        HStack(spacing: 5) {
+            Circle()
+                .fill(foregroundStyle)
+                .frame(width: 5, height: 5)
+                .scaleEffect(isWorkingState && isPulsing ? 1.25 : 1)
+                .opacity(isWorkingState && isPulsing ? 0.45 : 1)
+                .onAppear {
+                    guard isWorkingState else { return }
+                    withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+                        isPulsing = true
                     }
-            } else {
-                Circle()
-                    .fill(foregroundStyle)
-                    .frame(width: 6, height: 6)
-            }
-            
+                }
+
             Label(state.title, systemImage: state.symbolName)
-                .font(.system(.caption, design: .rounded).weight(.semibold))
+                .font(.system(.caption2, design: .rounded).weight(.semibold))
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
         .foregroundStyle(foregroundStyle)
-        .background(backgroundStyle, in: Capsule())
-        .overlay(
-            Capsule()
-                .strokeBorder(foregroundStyle.opacity(0.18), lineWidth: 1)
-        )
+        .background(foregroundStyle.opacity(0.08), in: Capsule())
     }
 
     private var isWorkingState: Bool {
@@ -47,9 +38,5 @@ struct StatusBadgeView: View {
 
     private var foregroundStyle: Color {
         AppTheme.workflowColor(for: state)
-    }
-
-    private var backgroundStyle: Color {
-        foregroundStyle.opacity(0.10)
     }
 }

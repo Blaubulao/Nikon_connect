@@ -13,5 +13,6 @@ swiftc -typecheck \
   Features/PhotoBrowser/*.swift \
   Features/Downloads/*.swift \
   Features/Settings/*.swift \
+  Features/Shared/*.swift \
   Infrastructure/*.swift \
   Services/*.swift

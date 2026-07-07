@@ -6,15 +6,19 @@ import AppKit
 #endif
 
 struct DownloadsView: View {
-    @ObservedObject var model: AppModel
+    let downloads: [DownloadRecord]
+    let downloadDirectoryPath: String
+    let activeDownloadProgress: ActiveDownloadProgress?
+    let onRefreshDownloads: () -> Void
+    let onCopyDownloadPath: () -> Void
 
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 20) {
                 overviewSection
 
-                if let progress = model.activeDownloadProgress {
-                    activeDownloadSection(progress)
+                if let activeDownloadProgress {
+                    activeDownloadSection(activeDownloadProgress)
                 }
 
                 recordsSection
@@ -28,7 +32,7 @@ struct DownloadsView: View {
     }
 
     private var exportedCount: Int {
-        model.downloads.filter(\.exportedToPhotoLibrary).count
+        downloads.filter(\.exportedToPhotoLibrary).count
     }
 
     private var overviewSection: some View {
@@ -44,7 +48,7 @@ struct DownloadsView: View {
                 HStack(spacing: 12) {
                     MetricTile(
                         label: "记录数",
-                        value: "\(model.downloads.count)",
+                        value: "\(downloads.count)",
                         systemImage: "tray.full",
                         accent: AppTheme.info
                     )
@@ -59,7 +63,7 @@ struct DownloadsView: View {
 
                 DisclosureGroup("查看存储位置") {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text(model.downloadDirectoryPath.isEmpty ? "加载中..." : model.downloadDirectoryPath)
+                        Text(downloadDirectoryPath.isEmpty ? "加载中..." : downloadDirectoryPath)
                             .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(AppTheme.inkMuted)
                             .textSelection(.enabled)
@@ -67,9 +71,7 @@ struct DownloadsView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(AppTheme.surfaceMuted, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-                        Button {
-                            copyDownloadPath()
-                        } label: {
+                        Button(action: onCopyDownloadPath) {
                             Label("复制路径", systemImage: "doc.on.doc")
                                 .font(.system(.footnote, design: .rounded).weight(.semibold))
                                 .foregroundStyle(AppTheme.ink)
@@ -78,18 +80,14 @@ struct DownloadsView: View {
                                 .background(AppTheme.surfaceMuted, in: Capsule())
                         }
                         .buttonStyle(.plain)
-                        .disabled(model.downloadDirectoryPath.isEmpty)
+                        .disabled(downloadDirectoryPath.isEmpty)
                     }
                     .padding(.top, 12)
                 }
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
                 .tint(AppTheme.ink)
 
-                Button {
-                    Task {
-                        await model.refreshDownloads()
-                    }
-                } label: {
+                Button(action: onRefreshDownloads) {
                     HStack {
                         Spacer()
                         Label("刷新下载记录", systemImage: "arrow.clockwise")
@@ -113,7 +111,7 @@ struct DownloadsView: View {
 
     private var recordsSection: some View {
         CustomCard(title: "最近完成") {
-            if model.downloads.isEmpty {
+            if downloads.isEmpty {
                 VStack(alignment: .center, spacing: 12) {
                     Image(systemName: "tray")
                         .font(.system(size: 32, weight: .semibold))
@@ -132,10 +130,10 @@ struct DownloadsView: View {
                 .padding(.vertical, 14)
             } else {
                 VStack(spacing: 0) {
-                    ForEach(model.downloads) { record in
+                    ForEach(downloads) { record in
                         DownloadRecordRow(record: record)
-                        
-                        if record.id != model.downloads.last?.id {
+
+                        if record.id != downloads.last?.id {
                             Divider()
                                 .padding(.vertical, 10)
                         }
@@ -143,14 +141,5 @@ struct DownloadsView: View {
                 }
             }
         }
-    }
-
-    private func copyDownloadPath() {
-        #if canImport(UIKit)
-        UIPasteboard.general.string = model.downloadDirectoryPath
-        #elseif canImport(AppKit)
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(model.downloadDirectoryPath, forType: .string)
-        #endif
     }
 }

@@ -1,7 +1,12 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @ObservedObject var model: AppModel
+    let autoExportToPhotoLibrary: Bool
+    let transportMode: CameraTransportMode
+    let portInput: String
+    let hostInput: String
+    let activityLog: [LogEntry]
+    let onSetAutoExportToPhotoLibrary: (Bool) -> Void
 
     var body: some View {
         ScrollView {
@@ -33,8 +38,8 @@ struct SettingsView: View {
                 Toggle(
                     "允许自动导出",
                     isOn: Binding(
-                        get: { model.autoExportToPhotoLibrary },
-                        set: { model.setAutoExportToPhotoLibrary($0) }
+                        get: { autoExportToPhotoLibrary },
+                        set: { onSetAutoExportToPhotoLibrary($0) }
                     )
                 )
                 .font(.system(.body, design: .rounded).weight(.semibold))
@@ -48,15 +53,15 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 14) {
                 DisclosureGroup("连接默认值") {
                     VStack(alignment: .leading, spacing: 12) {
-                        GridRowItem(label: "模式", value: model.transportMode.title, systemImage: "network")
+                        GridRowItem(label: "模式", value: transportMode.title, systemImage: "network")
                         GridRowItem(
                             label: "端口",
-                            value: model.portInput.isEmpty ? String(model.transportMode.defaultPort) : model.portInput,
+                            value: portInput.isEmpty ? String(transportMode.defaultPort) : portInput,
                             systemImage: "number.square"
                         )
                         GridRowItem(
                             label: "地址",
-                            value: model.hostInput.isEmpty ? "未设置" : model.hostInput,
+                            value: hostInput.isEmpty ? "未设置" : hostInput,
                             systemImage: "ipad.and.iphone"
                         )
                     }
@@ -65,12 +70,12 @@ struct SettingsView: View {
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
                 .tint(AppTheme.ink)
 
-                if !model.activityLog.isEmpty {
+                if !activityLog.isEmpty {
                     Divider()
 
                     DisclosureGroup("调试记录") {
                         VStack(alignment: .leading, spacing: 12) {
-                            ForEach(model.activityLog.prefix(12)) { entry in
+                            ForEach(activityLog.prefix(12)) { entry in
                                 HStack(alignment: .top, spacing: 8) {
                                     Circle()
                                         .fill(logColor(for: entry.message))

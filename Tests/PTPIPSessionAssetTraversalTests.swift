@@ -210,7 +210,7 @@ final class PTPIPSessionAssetTraversalTests: XCTestCase {
     }
 
     @MainActor
-    func testAppModelMergePreservesCameraOrderInsteadOfSortingByCaptureDate() {
+    func testPhotoAssetMergePreservesCameraOrderInsteadOfSortingByCaptureDate() {
         let olderRaw = PhotoAsset(
             remoteIdentifier: "raw-1",
             fileName: "DSC_0001.NEF",
@@ -226,7 +226,7 @@ final class PTPIPSessionAssetTraversalTests: XCTestCase {
             captureDate: Date(timeIntervalSince1970: 200)
         )
 
-        let merged = AppModel.mergePhotoAssetsPreservingCameraOrder(
+        let merged = PhotoAssetMerge.preservingCameraOrder(
             existing: [],
             incoming: [olderRaw, newerJPEG],
             resetTraversal: true

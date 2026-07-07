@@ -1,65 +1,78 @@
 import SwiftUI
 
 struct RootTabView: View {
-    @ObservedObject var model: AppModel
+    @ObservedObject var shell: AppShellViewModel
+    @ObservedObject var connectionViewModel: ConnectionViewModel
+    @ObservedObject var galleryViewModel: GalleryViewModel
+    @ObservedObject var downloadViewModel: DownloadManagerViewModel
 
     var body: some View {
         TabView {
             NavigationStack {
-                ConnectionSetupView(model: model)
+                ConnectionContainerView(
+                    connectionViewModel: connectionViewModel,
+                    galleryViewModel: galleryViewModel,
+                    shell: shell
+                )
             }
             .tabItem {
                 Label("相机", systemImage: "camera")
             }
 
             NavigationStack {
-                PhotoBrowserView(model: model)
+                GalleryContainerView(
+                    galleryViewModel: galleryViewModel,
+                    downloadViewModel: downloadViewModel,
+                    connectionViewModel: connectionViewModel
+                )
             }
             .tabItem {
                 Label("照片", systemImage: "photo.on.rectangle")
             }
 
             NavigationStack {
-                DownloadsView(model: model)
+                DownloadsContainerView(viewModel: downloadViewModel)
             }
             .tabItem {
                 Label("下载", systemImage: "tray.and.arrow.down")
             }
 
             NavigationStack {
-                SettingsView(model: model)
+                SettingsContainerView(
+                    connectionViewModel: connectionViewModel,
+                    shell: shell
+                )
             }
             .tabItem {
                 Label("设置", systemImage: "gearshape")
             }
         }
         .overlay(alignment: .top) {
-            if model.isWorking {
-                HStack(spacing: 10) {
+            if let activityTitle = shell.globalActivityTitle {
+                HStack(spacing: 8) {
                     ProgressView()
+                        .controlSize(.small)
                         .tint(AppTheme.accentStrong)
-                    Text(model.workingStatusTitle)
-                        .font(.system(.subheadline, design: .rounded).weight(.medium))
+                    Text(activityTitle)
+                        .font(.system(.footnote, design: .rounded).weight(.medium))
                         .foregroundStyle(AppTheme.ink)
                 }
-                .padding(.horizontal, 18)
-                .padding(.vertical, 10)
-                .background(AppTheme.surface, in: Capsule())
-                .clipShape(Capsule())
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(.thinMaterial, in: Capsule())
                 .overlay(
                     Capsule()
-                        .strokeBorder(AppTheme.border, lineWidth: 1)
+                        .strokeBorder(AppTheme.border, lineWidth: 0.5)
                 )
-                .shadow(color: AppTheme.shadow, radius: 10, x: 0, y: 4)
-                .padding(.top, 12)
+                .padding(.top, 10)
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: model.isWorking)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: shell.globalActivityTitle)
         .tint(AppTheme.accentStrong)
         .background(AppTheme.canvas.ignoresSafeArea())
         .applyTabBarChrome()
-        .alert(item: $model.alertContext) { alert in
+        .alert(item: $shell.alertContext) { alert in
             Alert(
                 title: Text(alert.title),
                 message: Text(alert.message),
