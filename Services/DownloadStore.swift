@@ -1,6 +1,9 @@
 import Foundation
 
 actor DownloadStore {
+    private static let manifestFileName = "downloads-manifest.json"
+    private static let queueManifestFileName = "download-jobs.json"
+
     private let fileManager: FileManager
     private let rootDirectory: URL
 
@@ -49,6 +52,73 @@ actor DownloadStore {
         return record
     }
 
+    func loadDownloadJobs() throws -> DownloadQueueState {
+        try loadQueueState()
+    }
+
+    func saveDownloadQueueState(_ state: DownloadQueueState) throws {
+        try saveQueueState(state)
+    }
+
+    func upsertDownloadJob(
+        _ job: DownloadJob,
+        queueStatus: DownloadQueueStatus,
+        activeJobID: UUID?
+    ) throws -> DownloadQueueState {
+        var state = try loadQueueState()
+        if let index = state.jobs.firstIndex(where: { $0.id == job.id }) {
+            state.jobs[index] = job
+        } else {
+            state.jobs.append(job)
+        }
+        state.activeJobID = activeJobID
+        state.status = queueStatus
+        try saveQueueState(state)
+        return state
+    }
+
+    func removeDownloadJobs(
+        ids: [UUID],
+        queueStatus: DownloadQueueStatus,
+        activeJobID: UUID?
+    ) throws -> DownloadQueueState {
+        var state = try loadQueueState()
+        state.jobs.removeAll { ids.contains($0.id) }
+        state.activeJobID = activeJobID
+        state.status = state.jobs.contains(where: { !$0.status.isTerminal }) ? queueStatus : .idle
+        try saveQueueState(state)
+        return state
+    }
+
+    func markInterruptedRunningJobs(reason: String?) throws -> DownloadQueueState {
+        var state = try loadQueueState()
+        let now = Date()
+        var didInterruptRunningJob = false
+        state.jobs = state.jobs.map { job in
+            guard job.status == .running else {
+                return job
+            }
+
+            var updatedJob = job
+            updatedJob.status = .interrupted
+            updatedJob.updatedAt = now
+            updatedJob.errorMessage = reason
+            didInterruptRunningJob = true
+            return updatedJob
+        }
+
+        if didInterruptRunningJob {
+            state.activeJobID = nil
+            state.status = state.jobs.contains(where: { !$0.status.isTerminal }) ? .interrupted : .idle
+        } else if !state.jobs.contains(where: { !$0.status.isTerminal }) {
+            state.activeJobID = nil
+            state.status = .idle
+        }
+
+        try saveQueueState(state)
+        return state
+    }
+
     func storeDownloadedFile(at sourceURL: URL, from asset: PhotoAsset) throws -> DownloadRecord {
         let directory = try downloadsDirectoryURL()
         let destination = uniqueDestinationURL(in: directory, fileName: asset.fileName)
@@ -93,7 +163,11 @@ actor DownloadStore {
     }
 
     private func manifestURL() throws -> URL {
-        try downloadsDirectoryURL().appendingPathComponent("downloads-manifest.json")
+        try downloadsDirectoryURL().appendingPathComponent(Self.manifestFileName)
+    }
+
+    private func queueManifestURL() throws -> URL {
+        try downloadsDirectoryURL().appendingPathComponent(Self.queueManifestFileName)
     }
 
     private func ensureDirectoryExists(at url: URL) throws {
@@ -140,6 +214,29 @@ actor DownloadStore {
             try data.write(to: url, options: .atomic)
         } catch {
             throw CameraAppError.fileSystemFailure("无法写入下载清单：\(error.localizedDescription)")
+        }
+    }
+
+    private func loadQueueState() throws -> DownloadQueueState {
+        let url = try queueManifestURL()
+        guard fileManager.fileExists(atPath: url.path) else { return DownloadQueueState() }
+
+        do {
+            let data = try Data(contentsOf: url)
+            return try JSONDecoder().decode(DownloadQueueState.self, from: data)
+        } catch {
+            throw CameraAppError.fileSystemFailure("无法读取下载队列：\(error.localizedDescription)")
+        }
+    }
+
+    private func saveQueueState(_ state: DownloadQueueState) throws {
+        let url = try queueManifestURL()
+
+        do {
+            let data = try JSONEncoder().encode(state)
+            try data.write(to: url, options: .atomic)
+        } catch {
+            throw CameraAppError.fileSystemFailure("无法写入下载队列：\(error.localizedDescription)")
         }
     }
 }

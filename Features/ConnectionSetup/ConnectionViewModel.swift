@@ -7,6 +7,7 @@ final class ConnectionViewModel: ObservableObject {
     @Published var portInput: String
     @Published var transportMode: CameraTransportMode
     @Published var autoExportToPhotoLibrary: Bool
+    @Published var prioritizeJPEGDownloads: Bool
     @Published var workflowState: CameraWorkflowState = .waitingForWifi
     @Published var activeSession: CameraSession?
     @Published var lastSummary = "先在系统设置里连接 Nikon 相机的 Wi‑Fi，然后回到这里开始。"
@@ -37,6 +38,7 @@ final class ConnectionViewModel: ObservableObject {
         self.hostInput = config.host
         self.portInput = String(config.port)
         self.autoExportToPhotoLibrary = config.autoExportToPhotoLibrary
+        self.prioritizeJPEGDownloads = config.prioritizeJPEGDownloads
 
         if let defaultHost = transportMode.defaultHost {
             self.hostInput = defaultHost
@@ -61,6 +63,11 @@ final class ConnectionViewModel: ObservableObject {
 
     func setAutoExportToPhotoLibrary(_ isEnabled: Bool) {
         autoExportToPhotoLibrary = isEnabled
+        persistConfiguration()
+    }
+
+    func setPrioritizeJPEGDownloads(_ isEnabled: Bool) {
+        prioritizeJPEGDownloads = isEnabled
         persistConfiguration()
     }
 
@@ -131,7 +138,8 @@ final class ConnectionViewModel: ObservableObject {
             host: host,
             port: port,
             transportMode: transportMode,
-            autoExportToPhotoLibrary: autoExportToPhotoLibrary
+            autoExportToPhotoLibrary: autoExportToPhotoLibrary,
+            prioritizeJPEGDownloads: prioritizeJPEGDownloads
         )
 
         if config.normalizedHost.isEmpty {
@@ -147,7 +155,8 @@ final class ConnectionViewModel: ObservableObject {
             host: host,
             port: transportMode.defaultPort,
             transportMode: transportMode,
-            autoExportToPhotoLibrary: autoExportToPhotoLibrary
+            autoExportToPhotoLibrary: autoExportToPhotoLibrary,
+            prioritizeJPEGDownloads: prioritizeJPEGDownloads
         )
 
         preferencesStore.saveConnectionConfig(config)

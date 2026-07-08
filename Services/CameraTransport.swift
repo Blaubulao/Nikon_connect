@@ -29,6 +29,7 @@ protocol CameraTransport: Sendable {
         from session: CameraSession,
         onProgress: (@Sendable (DownloadTransferProgress) async -> Void)?
     ) async throws -> URL
+    func downloadTransferMode(for asset: PhotoAsset) async -> DownloadThroughputTransferMode
     func consumeDiagnostics() async -> [String]
     func disconnect() async
 }
@@ -59,5 +60,9 @@ extension CameraTransport {
         onProgress: (@Sendable (DownloadTransferProgress) async -> Void)?
     ) async throws -> URL {
         try await downloadAssetToTemporaryFile(asset, from: session)
+    }
+
+    func downloadTransferMode(for asset: PhotoAsset) async -> DownloadThroughputTransferMode {
+        .unknown
     }
 }

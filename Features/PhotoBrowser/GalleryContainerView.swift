@@ -16,6 +16,9 @@ struct GalleryContainerView: View {
             canLoadMorePhotos: galleryViewModel.canLoadMorePhotos(for: connectionViewModel.activeSession),
             canDownloadSelection: downloadViewModel.canDownload(galleryViewModel.selectedAssets, session: connectionViewModel.activeSession),
             activeDownloadProgress: downloadViewModel.activeDownloadProgress,
+            canPauseDownloads: downloadViewModel.canPauseQueue,
+            canResumeDownloads: downloadViewModel.canResumeQueue,
+            queuedJobCount: downloadViewModel.queuedJobs.count,
             onRefreshPhotos: {
                 Task {
                     await galleryViewModel.refreshPhotos()
@@ -39,11 +42,20 @@ struct GalleryContainerView: View {
                 Task {
                     let didDownload = await downloadViewModel.downloadAssets(
                         galleryViewModel.selectedAssets,
-                        autoExportToPhotoLibrary: connectionViewModel.autoExportToPhotoLibrary
+                        autoExportToPhotoLibrary: connectionViewModel.autoExportToPhotoLibrary,
+                        prioritizeJPEGDownloads: connectionViewModel.prioritizeJPEGDownloads
                     )
                     if didDownload {
                         galleryViewModel.clearSelection()
                     }
+                }
+            },
+            onPauseDownloads: {
+                downloadViewModel.pauseQueue()
+            },
+            onResumeDownloads: {
+                Task {
+                    await downloadViewModel.resumeInterruptedDownloads()
                 }
             },
             loadThumbnail: { asset in

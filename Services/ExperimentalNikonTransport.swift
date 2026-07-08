@@ -65,7 +65,10 @@ actor ExperimentalNikonTransport: CameraTransport {
         }
 
         do {
-            return try await ptpSession.downloadAsset(handle: handle)
+            return try await ptpSession.downloadAsset(
+                handle: handle,
+                expectedByteSize: asset.byteSize
+            )
         } catch {
             throw mapError(error)
         }
@@ -105,6 +108,7 @@ actor ExperimentalNikonTransport: CameraTransport {
             return try await ptpSession.downloadAssetToTemporaryFile(
                 handle: handle,
                 suggestedFileName: asset.fileName,
+                expectedByteSize: asset.byteSize,
                 onProgress: { progress in
                     if let onProgress {
                         await onProgress(progress)
@@ -114,6 +118,14 @@ actor ExperimentalNikonTransport: CameraTransport {
         } catch {
             throw mapError(error)
         }
+    }
+
+    func downloadTransferMode(for asset: PhotoAsset) async -> DownloadThroughputTransferMode {
+        guard let ptpSession = session else {
+            return .unknown
+        }
+
+        return await ptpSession.throughputTransferMode(forExpectedByteSize: asset.byteSize)
     }
 
     func downloadThumbnail(_ asset: PhotoAsset, from session: CameraSession) async throws -> Data? {

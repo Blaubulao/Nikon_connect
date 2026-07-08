@@ -21,12 +21,17 @@ struct PhotoBrowserView: View {
     let canLoadMorePhotos: Bool
     let canDownloadSelection: Bool
     let activeDownloadProgress: ActiveDownloadProgress?
+    let canPauseDownloads: Bool
+    let canResumeDownloads: Bool
+    let queuedJobCount: Int
     let onRefreshPhotos: () -> Void
     let onLoadMorePhotos: () -> Void
     let onToggleSelection: (PhotoAsset) -> Void
     let onSelectAllAssets: () -> Void
     let onClearSelection: () -> Void
     let onDownloadSelectedAssets: () -> Void
+    let onPauseDownloads: () -> Void
+    let onResumeDownloads: () -> Void
     let loadThumbnail: (PhotoAsset) async -> Data?
     let loadPreview: (PhotoAsset) async -> Data?
 
@@ -96,7 +101,7 @@ struct PhotoBrowserView: View {
                         downloadProgressCard(activeDownloadProgress)
                     }
 
-                    if selectedAssetsCount > 0 {
+                    if selectedAssetsCount > 0 || queuedJobCount > 0 {
                         bottomActionBar
                     }
                 }
@@ -113,7 +118,7 @@ struct PhotoBrowserView: View {
     }
 
     private var showBottomOverlay: Bool {
-        activeDownloadProgress != nil || selectedAssetsCount > 0
+        activeDownloadProgress != nil || selectedAssetsCount > 0 || queuedJobCount > 0
     }
 
     private var gridItems: [GridItem] {
@@ -307,7 +312,7 @@ struct PhotoBrowserView: View {
     private var bottomActionBar: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("已选择 \(selectedAssetsCount) 项")
+                Text(selectedAssetsCount > 0 ? "已选择 \(selectedAssetsCount) 项" : "队列中还有 \(queuedJobCount) 项")
                     .font(.system(.subheadline, design: .rounded).weight(.bold))
                     .foregroundStyle(AppTheme.ink)
 
@@ -319,25 +324,59 @@ struct PhotoBrowserView: View {
 
             Spacer()
 
-            Button(action: onDownloadSelectedAssets) {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .font(.system(size: 18))
-                    Text("开始下载")
-                        .font(.system(.subheadline, design: .rounded).weight(.bold))
+            HStack(spacing: 8) {
+                if canPauseDownloads {
+                    Button(action: onPauseDownloads) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "pause.fill")
+                                .font(.system(size: 15, weight: .bold))
+                            Text("暂停")
+                                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                        }
+                        .foregroundStyle(AppTheme.ink)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(AppTheme.surfaceMuted, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                } else if canResumeDownloads {
+                    Button(action: onResumeDownloads) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 15, weight: .bold))
+                            Text("继续")
+                                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                        }
+                        .foregroundStyle(AppTheme.ink)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(AppTheme.surfaceMuted, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .foregroundStyle(canDownloadSelection ? AppTheme.surface : AppTheme.inkMuted)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .background(
-                    canDownloadSelection
-                    ? AppTheme.ink
-                    : AppTheme.surfaceMuted,
-                    in: Capsule()
-                )
+
+                if selectedAssetsCount > 0 {
+                    Button(action: onDownloadSelectedAssets) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.system(size: 18))
+                            Text(queuedJobCount > 0 ? "加入队列" : "开始下载")
+                                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                        }
+                        .foregroundStyle(canDownloadSelection ? AppTheme.surface : AppTheme.inkMuted)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(
+                            canDownloadSelection
+                            ? AppTheme.ink
+                            : AppTheme.surfaceMuted,
+                            in: Capsule()
+                        )
+                    }
+                    .disabled(!canDownloadSelection)
+                    .buttonStyle(.plain)
+                }
             }
-            .disabled(!canDownloadSelection)
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 14)

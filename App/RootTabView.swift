@@ -109,6 +109,7 @@ private extension View {
     }
 }
 
+@MainActor
 private func configureTabBarAppearance() {
     #if canImport(UIKit)
     let appearance = UITabBarAppearance()

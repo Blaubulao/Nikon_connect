@@ -3,6 +3,7 @@ import SwiftUI
 @main
 @MainActor
 struct NikonConnectApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var shell: AppShellViewModel
     @StateObject private var connectionViewModel: ConnectionViewModel
     @StateObject private var galleryViewModel: GalleryViewModel
@@ -55,6 +56,10 @@ struct NikonConnectApp: App {
             .task {
                 await connectionViewModel.bootstrapIfNeeded()
                 await downloadViewModel.refreshDownloads()
+                await downloadViewModel.loadPersistedQueue()
+            }
+            .onChange(of: scenePhase) { newPhase in
+                downloadViewModel.handleScenePhaseChange(newPhase)
             }
         }
     }

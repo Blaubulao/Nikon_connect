@@ -261,6 +261,7 @@ struct Haptics {
         case success, warning, error
     }
 
+    @MainActor
     static func impact(_ style: ImpactStyle = .light) {
         #if os(iOS)
         let uiStyle: UIImpactFeedbackGenerator.FeedbackStyle
@@ -275,6 +276,7 @@ struct Haptics {
         #endif
     }
 
+    @MainActor
     static func notification(_ type: NotificationType) {
         #if os(iOS)
         let uiType: UINotificationFeedbackGenerator.FeedbackType

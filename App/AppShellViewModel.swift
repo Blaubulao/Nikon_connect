@@ -28,6 +28,7 @@ final class AppShellViewModel: ObservableObject {
         alertContext = AlertContext(title: title, message: message)
     }
 
+    @discardableResult
     func handle(_ error: Error) -> String {
         let message = userFacingMessage(for: error)
         showAlert(title: "出现问题", message: message)

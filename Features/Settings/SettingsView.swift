@@ -2,10 +2,12 @@ import SwiftUI
 
 struct SettingsView: View {
     let autoExportToPhotoLibrary: Bool
+    let prioritizeJPEGDownloads: Bool
     let portInput: String
     let hostInput: String
     let activityLog: [LogEntry]
     let onSetAutoExportToPhotoLibrary: (Bool) -> Void
+    let onSetPrioritizeJPEGDownloads: (Bool) -> Void
 
     var body: some View {
         ScrollView {
@@ -27,15 +29,36 @@ struct SettingsView: View {
             SectionHeader(title: "下载行为")
 
             CustomCard {
-                Toggle(
-                    "允许自动导出到系统相册",
-                    isOn: Binding(
-                        get: { autoExportToPhotoLibrary },
-                        set: { onSetAutoExportToPhotoLibrary($0) }
+                VStack(alignment: .leading, spacing: 14) {
+                    Toggle(
+                        "允许自动导出到系统相册",
+                        isOn: Binding(
+                            get: { autoExportToPhotoLibrary },
+                            set: { onSetAutoExportToPhotoLibrary($0) }
+                        )
                     )
-                )
-                .font(.system(.body, design: .rounded).weight(.semibold))
-                .tint(AppTheme.accentStrong)
+                    .font(.system(.body, design: .rounded).weight(.semibold))
+                    .tint(AppTheme.accentStrong)
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle(
+                            "启用 JPEG 优先 / RAW 后补",
+                            isOn: Binding(
+                                get: { prioritizeJPEGDownloads },
+                                set: { onSetPrioritizeJPEGDownloads($0) }
+                            )
+                        )
+                        .font(.system(.body, design: .rounded).weight(.semibold))
+                        .tint(AppTheme.accentStrong)
+
+                        Text("选中混合格式时，会优先下载 JPEG / PNG，再继续下载 RAW 和视频，体感会更快。")
+                            .font(.system(.caption, design: .rounded))
+                            .foregroundStyle(AppTheme.inkMuted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
         }
     }
@@ -48,6 +71,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     GridRowItem(label: "目标地址", value: resolvedTarget, systemImage: "network")
                     GridRowItem(label: "下载后处理", value: exportSummary, systemImage: "photo.badge.arrow.down")
+                    GridRowItem(label: "下载排序", value: downloadPrioritySummary, systemImage: "arrow.up.arrow.down")
                 }
             }
         }
@@ -113,6 +137,10 @@ struct SettingsView: View {
 
     private var exportSummary: String {
         autoExportToPhotoLibrary ? "下载后同步到系统相册" : "仅保留在应用本地"
+    }
+
+    private var downloadPrioritySummary: String {
+        prioritizeJPEGDownloads ? "JPEG / PNG 优先，RAW 后补" : "保持相机当前顺序"
     }
 
     private func logColor(for msg: String) -> Color {

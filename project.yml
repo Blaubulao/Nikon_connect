@@ -29,6 +29,9 @@ targets:
       - path: Infrastructure
     resources:
       - path: Resources/Assets.xcassets
+    dependencies:
+      - target: DownloadActivityWidgetExtension
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yaoyihan.NikonConnectIOS
@@ -41,6 +44,23 @@ targets:
     scheme:
       testTargets:
         - NikonConnectIOSTests
+
+  DownloadActivityWidgetExtension:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "16.1"
+    sources:
+      - path: DownloadActivityWidget
+      - path: Domain/DownloadActivityAttributes.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yaoyihan.NikonConnectIOS.DownloadActivityWidget
+        PRODUCT_NAME: DownloadActivityWidget
+        PRODUCT_MODULE_NAME: DownloadActivityWidget
+        INFOPLIST_FILE: DownloadActivityWidget/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        APPLICATION_EXTENSION_API_ONLY: YES
+        IPHONEOS_DEPLOYMENT_TARGET: "16.1"
 
   NikonConnectIOSTests:
     type: bundle.unit-test

@@ -24,7 +24,7 @@ extension PTPIPSession {
         assetTraversalState = nil
         thumbnailOperationSupport = .unknown
         deviceInfo = nil
-        downloadStrategy = .fullObject
+        downloadStrategy = .fullObjectOnly
         latestSentProbeSequence = 0
         latestAcknowledgedProbeSequence = 0
         connectionNumber = nil
@@ -174,7 +174,9 @@ extension PTPIPSession {
         operation: PTPOperationCode,
         transactionID: UInt32,
         parameters: [UInt32],
-        suggestedFileName: String
+        suggestedFileName: String,
+        expectedTotalBytes: Int64? = nil,
+        onProgress: (@Sendable (DownloadTransferProgress) async -> Void)? = nil
     ) async throws -> URL {
         try await withExclusiveCommandChannelAccess {
             let temporaryURL = Self.makeTemporaryDownloadURL(suggestedFileName: suggestedFileName)
@@ -189,10 +191,23 @@ extension PTPIPSession {
                 _ = try await requestDataInStreamingDirect(
                     operation: operation,
                     transactionID: transactionID,
-                    parameters: parameters
-                ) { chunk in
-                    try Self.write(chunk, to: outputStream)
-                }
+                    parameters: parameters,
+                    onChunk: { chunk in
+                        try Self.write(chunk, to: outputStream)
+                    },
+                    onProgress: { bytesTransferred, totalBytes, chunkSize in
+                        if let onProgress {
+                            await onProgress(
+                                Self.makeStreamingDownloadProgress(
+                                    bytesTransferred: bytesTransferred,
+                                    reportedTotalBytes: totalBytes,
+                                    expectedTotalBytes: expectedTotalBytes,
+                                    chunkSize: chunkSize
+                                )
+                            )
+                        }
+                    }
+                )
                 return temporaryURL
             } catch {
                 try? FileManager.default.removeItem(at: temporaryURL)
@@ -241,7 +256,8 @@ extension PTPIPSession {
         operation: PTPOperationCode,
         transactionID: UInt32,
         parameters: [UInt32],
-        onChunk: (Data) throws -> Void
+        onChunk: (Data) throws -> Void,
+        onProgress: (@Sendable (_ bytesTransferred: UInt64, _ totalBytes: UInt64?, _ chunkSize: Int) async -> Void)? = nil
     ) async throws -> UInt64 {
         try await commandConnection.send(
             PTPIPBinary.encodeOperationRequest(
@@ -265,25 +281,35 @@ extension PTPIPSession {
                 throw PTPIPError.invalidTransaction(expected: transactionID, actual: start.transactionID)
             }
 
+            let reportedTotalBytes = start.totalLength == UInt64.max ? nil : start.totalLength
             var bytesTransferred: UInt64 = 0
             while true {
                 let packet = try await commandConnection.receivePacket(timeoutSeconds: 30)
+                try Task.checkCancellation()
                 switch packet.type {
                 case .data:
                     let part = try PTPIPBinary.parseDataPayload(packet.payload)
                     guard part.transactionID == transactionID else {
                         throw PTPIPError.invalidTransaction(expected: transactionID, actual: part.transactionID)
                     }
+                    try Task.checkCancellation()
                     try onChunk(part.bytes)
                     bytesTransferred += UInt64(part.bytes.count)
+                    if let onProgress {
+                        await onProgress(bytesTransferred, reportedTotalBytes, part.bytes.count)
+                    }
 
                 case .endData:
                     let part = try PTPIPBinary.parseDataPayload(packet.payload)
                     guard part.transactionID == transactionID else {
                         throw PTPIPError.invalidTransaction(expected: transactionID, actual: part.transactionID)
                     }
+                    try Task.checkCancellation()
                     try onChunk(part.bytes)
                     bytesTransferred += UInt64(part.bytes.count)
+                    if let onProgress {
+                        await onProgress(bytesTransferred, reportedTotalBytes, part.bytes.count)
+                    }
 
                     let responsePacket = try await commandConnection.receivePacket(timeoutSeconds: 30)
                     let response = try PTPIPBinary.parseResponsePacket(responsePacket)

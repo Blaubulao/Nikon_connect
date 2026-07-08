@@ -1,58 +1,105 @@
 import Foundation
 
 extension PTPIPSession {
-    func downloadAssetPayload(handle: UInt32) async throws -> Data {
+    func downloadAssetPayload(handle: UInt32, expectedByteSize: Int64?) async throws -> Data {
         try ensureOpen()
-        switch downloadStrategy {
+        switch downloadTransferMode(forExpectedByteSize: expectedByteSize) {
         case .fullObject:
             recordDiagnostic("开始整包下载对象 handle=\(handle)")
-            return try await requestDataIn(
-                operation: .getObject,
-                transactionID: consumeTransactionID(),
-                parameters: [handle]
-            )
+            do {
+                return try await requestDataIn(
+                    operation: .getObject,
+                    transactionID: consumeTransactionID(),
+                    parameters: [handle]
+                )
+            } catch {
+                guard shouldFallbackToPartialDownload(after: error) else {
+                    throw error
+                }
 
-        case .partialObject(let chunkSize):
-            let objectInfo = try await fetchObjectInfo(handle: handle)
-            let totalLength = UInt64(objectInfo.compressedSize)
-            var collected = Data(capacity: Int(totalLength))
-            recordDiagnostic("开始分块下载对象 handle=\(handle)，chunk=\(chunkSize)")
-            try await downloadObjectInChunks(
+                let totalLength = try await resolvedExpectedByteSize(
+                    for: handle,
+                    expectedByteSize: expectedByteSize
+                )
+                recordDiagnostic(
+                    "整包下载失败，回退到分块续传 handle=\(handle)，初始 chunk=\(Self.chunkSizeLabel(Self.defaultChunkSize))。"
+                )
+                return try await downloadAssetDataInChunks(
+                    handle: handle,
+                    totalLength: totalLength,
+                    initialChunkSize: Self.defaultChunkSize
+                )
+            }
+
+        case .partialObject(let initialChunkSize):
+            let totalLength = try await resolvedExpectedByteSize(
+                for: handle,
+                expectedByteSize: expectedByteSize
+            )
+            recordDiagnostic(
+                "开始分块下载对象 handle=\(handle)，初始 chunk=\(Self.chunkSizeLabel(initialChunkSize))。"
+            )
+            return try await downloadAssetDataInChunks(
                 handle: handle,
                 totalLength: totalLength,
-                chunkSize: chunkSize
-            ) { chunk in
-                collected.append(chunk)
-            }
-            return collected
+                initialChunkSize: initialChunkSize
+            )
         }
     }
 
     func downloadAssetToTemporaryFilePayload(
         handle: UInt32,
         suggestedFileName: String,
+        expectedByteSize: Int64?,
         onProgress: (@Sendable (DownloadTransferProgress) async -> Void)?
     ) async throws -> URL {
         try ensureOpen()
-        switch downloadStrategy {
+        switch downloadTransferMode(forExpectedByteSize: expectedByteSize) {
         case .fullObject:
             recordDiagnostic("开始流式整包下载对象 handle=\(handle)")
-            return try await requestDataInToTemporaryFile(
-                operation: .getObject,
-                transactionID: consumeTransactionID(),
-                parameters: [handle],
-                suggestedFileName: suggestedFileName
-            )
+            do {
+                return try await requestDataInToTemporaryFile(
+                    operation: .getObject,
+                    transactionID: consumeTransactionID(),
+                    parameters: [handle],
+                    suggestedFileName: suggestedFileName,
+                    expectedTotalBytes: expectedByteSize,
+                    onProgress: onProgress
+                )
+            } catch {
+                guard shouldFallbackToPartialDownload(after: error) else {
+                    throw error
+                }
 
-        case .partialObject(let chunkSize):
-            let objectInfo = try await fetchObjectInfo(handle: handle)
-            let totalLength = UInt64(objectInfo.compressedSize)
-            recordDiagnostic("开始分块流式下载对象 handle=\(handle)，chunk=\(chunkSize)")
+                let totalLength = try await resolvedExpectedByteSize(
+                    for: handle,
+                    expectedByteSize: expectedByteSize
+                )
+                recordDiagnostic(
+                    "整包流式下载失败，回退到分块续传 handle=\(handle)，初始 chunk=\(Self.chunkSizeLabel(Self.defaultChunkSize))。"
+                )
+                return try await downloadObjectToTemporaryFileInChunks(
+                    handle: handle,
+                    totalLength: totalLength,
+                    suggestedFileName: suggestedFileName,
+                    initialChunkSize: Self.defaultChunkSize,
+                    onProgress: onProgress
+                )
+            }
+
+        case .partialObject(let initialChunkSize):
+            let totalLength = try await resolvedExpectedByteSize(
+                for: handle,
+                expectedByteSize: expectedByteSize
+            )
+            recordDiagnostic(
+                "开始分块流式下载对象 handle=\(handle)，初始 chunk=\(Self.chunkSizeLabel(initialChunkSize))。"
+            )
             return try await downloadObjectToTemporaryFileInChunks(
                 handle: handle,
                 totalLength: totalLength,
                 suggestedFileName: suggestedFileName,
-                chunkSize: chunkSize,
+                initialChunkSize: initialChunkSize,
                 onProgress: onProgress
             )
         }
@@ -93,18 +140,76 @@ extension PTPIPSession {
 
     func configureDownloadStrategy(using deviceInfo: PTPIPDeviceInfo) {
         if deviceInfo.supportsOperation(.getPartialObject) {
-            downloadStrategy = .partialObject(chunkSize: Self.defaultChunkSize)
-            recordDiagnostic("相机支持 GetPartialObject，启用分块可恢复下载。")
+            downloadStrategy = .hybrid
+            recordDiagnostic(
+                "相机支持 GetPartialObject，启用混合下载策略：小文件整包，大文件分块，chunk 在 \(Self.chunkSizeLabel(Self.minimumChunkSize))-\(Self.chunkSizeLabel(Self.maximumChunkSize)) 之间自适应。"
+            )
         } else {
-            downloadStrategy = .fullObject
+            downloadStrategy = .fullObjectOnly
             recordDiagnostic("相机未声明 GetPartialObject，回退为整包下载。")
         }
+    }
+
+    func normalizedExpectedByteSize(_ expectedByteSize: Int64?) -> UInt64? {
+        guard let expectedByteSize, expectedByteSize > 0 else {
+            return nil
+        }
+
+        return UInt64(expectedByteSize)
+    }
+
+    func downloadTransferMode(forExpectedByteSize expectedByteSize: Int64?) -> DownloadTransferMode {
+        switch downloadStrategy {
+        case .fullObjectOnly:
+            return .fullObject
+        case .hybrid:
+            guard
+                let resolvedSize = normalizedExpectedByteSize(expectedByteSize),
+                resolvedSize > UInt64(Self.fullObjectDownloadThreshold)
+            else {
+                return .fullObject
+            }
+            return .partialObject(initialChunkSize: Self.defaultChunkSize)
+        }
+    }
+
+    func resolvedExpectedByteSize(for handle: UInt32, expectedByteSize: Int64?) async throws -> UInt64 {
+        if let resolvedSize = normalizedExpectedByteSize(expectedByteSize) {
+            return resolvedSize
+        }
+
+        let objectInfo = try await fetchObjectInfo(handle: handle)
+        return UInt64(objectInfo.compressedSize)
+    }
+
+    func shouldFallbackToPartialDownload(after error: Error) -> Bool {
+        guard downloadStrategy == .hybrid else {
+            return false
+        }
+
+        return shouldRetryChunkTransfer(after: error)
+    }
+
+    func downloadAssetDataInChunks(
+        handle: UInt32,
+        totalLength: UInt64,
+        initialChunkSize: Int
+    ) async throws -> Data {
+        var collected = Data(capacity: Int(totalLength))
+        try await downloadObjectInChunks(
+            handle: handle,
+            totalLength: totalLength,
+            initialChunkSize: initialChunkSize
+        ) { chunk in
+            collected.append(chunk)
+        }
+        return collected
     }
 
     func downloadObjectInChunks(
         handle: UInt32,
         totalLength: UInt64,
-        chunkSize: Int,
+        initialChunkSize: Int,
         onChunk: (Data) throws -> Void,
         onProgress: (@Sendable (DownloadTransferProgress) async -> Void)? = nil
     ) async throws {
@@ -117,13 +222,19 @@ extension PTPIPSession {
         }
 
         try await withExclusiveCommandChannelAccess {
+            var chunkController = AdaptiveChunkController(
+                initialChunkSize: initialChunkSize,
+                minimumChunkSize: Self.minimumChunkSize,
+                maximumChunkSize: Self.maximumChunkSize
+            )
             var offset: UInt64 = 0
             var retryCount = 0
             var resumedCount = 0
 
             while offset < totalLength {
+                try Task.checkCancellation()
                 let remaining = totalLength - offset
-                let requestLength = min(UInt64(chunkSize), remaining)
+                let requestLength = UInt64(chunkController.requestLength(remaining: remaining))
 
                 do {
                     let payload = try await requestDataInDirect(
@@ -135,9 +246,16 @@ extension PTPIPSession {
                         throw PTPIPError.malformedPayload("GetPartialObject 返回了空数据。")
                     }
 
+                    try Task.checkCancellation()
                     try onChunk(payload)
                     offset += UInt64(payload.count)
                     retryCount = 0
+                    if let updatedChunkSize = chunkController.registerSuccess(
+                        receivedBytes: payload.count,
+                        requestedBytes: Int(requestLength)
+                    ) {
+                        recordDiagnostic("链路稳定，分块大小上调到 \(Self.chunkSizeLabel(updatedChunkSize))。")
+                    }
 
                     if let onProgress {
                         await onProgress(
@@ -157,6 +275,9 @@ extension PTPIPSession {
 
                     retryCount += 1
                     resumedCount += 1
+                    if let updatedChunkSize = chunkController.registerRetryableFailure() {
+                        recordDiagnostic("检测到传输抖动，分块大小下调到 \(Self.chunkSizeLabel(updatedChunkSize))。")
+                    }
 
                     if let onProgress {
                         await onProgress(
@@ -170,6 +291,7 @@ extension PTPIPSession {
                         )
                     }
 
+                    try Task.checkCancellation()
                     try await prepareChunkRetry(
                         after: error,
                         offset: offset,
@@ -185,7 +307,7 @@ extension PTPIPSession {
         handle: UInt32,
         totalLength: UInt64,
         suggestedFileName: String,
-        chunkSize: Int,
+        initialChunkSize: Int,
         onProgress: (@Sendable (DownloadTransferProgress) async -> Void)?
     ) async throws -> URL {
         let temporaryURL = Self.makeTemporaryDownloadURL(suggestedFileName: suggestedFileName)
@@ -200,7 +322,7 @@ extension PTPIPSession {
             try await downloadObjectInChunks(
                 handle: handle,
                 totalLength: totalLength,
-                chunkSize: chunkSize
+                initialChunkSize: initialChunkSize
             ) { chunk in
                 try Self.write(chunk, to: outputStream)
             } onProgress: { progress in
@@ -254,6 +376,10 @@ extension PTPIPSession {
         let ext = URL(fileURLWithPath: suggestedFileName).pathExtension
         let fileName = ext.isEmpty ? UUID().uuidString : UUID().uuidString + "." + ext
         return FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+    }
+
+    static func chunkSizeLabel(_ chunkSize: Int) -> String {
+        "\(max(chunkSize / 1_048_576, 1))MB"
     }
 
     static func write(_ data: Data, to outputStream: OutputStream) throws {
