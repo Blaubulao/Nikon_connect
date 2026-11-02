@@ -1,0 +1,49 @@
+name: Build iPhone IPA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Download source
+        uses: actions/checkout@v4
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          zsh scripts/generate_project.sh
+
+      - name: Build unsigned iPhone app
+        run: |
+          xcodebuild \
+            -project NikonConnectIOS.xcodeproj \
+            -scheme NikonConnectIOS \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            build
+
+      - name: Package IPA
+        run: |
+          mkdir -p build/ipa/Payload
+          cp -R 'build/DerivedData/Build/Products/Release-iphoneos/Nikon Connect.app' build/ipa/Payload/
+          cd build/ipa
+          zip -qry ../NikonConnect-unsigned.ipa Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: NikonConnect-unsigned-IPA
+          path: build/NikonConnect-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 7
