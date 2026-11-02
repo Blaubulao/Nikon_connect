@@ -454,7 +454,7 @@ extension PTPIPSession {
         )
     }
 
-    func withExclusiveCommandChannelAccess<T>(
+    func withExclusiveCommandChannelAccess<T: Sendable>(
         _ operation: () async throws -> T
     ) async throws -> T {
         await acquireCommandChannelAccess()
