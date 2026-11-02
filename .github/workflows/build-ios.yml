@@ -20,8 +20,12 @@ jobs:
           zsh scripts/generate_project.sh
 
       - name: Build unsigned iPhone app
+        id: compile
         run: |
+          mkdir -p build
+          set -o pipefail
           xcodebuild \
+          xcodebuild -quiet \
             -project NikonConnectIOS.xcodeproj \
             -scheme NikonConnectIOS \
             -configuration Release \
@@ -32,6 +36,26 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY='' \
             build
+            build 2>&1 | tee build/xcodebuild.log
+
+      - name: Show compiler errors
+        if: ${{ failure() && steps.compile.outcome == 'failure' }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          log_text = Path('build/xcodebuild.log').read_text(errors='replace')
+          error_lines = [line for line in log_text.splitlines() if re.search(r'\b(?:fatal )?error:', line)]
+          if not error_lines:
+              error_lines = ['No compiler error line found. Download NikonConnect-build-log for details.']
+          for error_line in error_lines[:20]:
+              message = error_line.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+              print(f'::error::{message}')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+              summary.write('## Compiler errors\n\n```text\n' + '\n'.join(error_lines[:20]) + '\n```\n')
+          PY
 
       - name: Package IPA
         run: |
@@ -46,4 +70,13 @@ jobs:
           name: NikonConnect-unsigned-IPA
           path: build/NikonConnect-unsigned.ipa
           if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload build log
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: NikonConnect-build-log
+          path: build/xcodebuild.log
+          if-no-files-found: ignore
           retention-days: 7
