@@ -24,7 +24,6 @@ jobs:
         run: |
           mkdir -p build
           set -o pipefail
-          xcodebuild \
           xcodebuild -quiet \
             -project NikonConnectIOS.xcodeproj \
             -scheme NikonConnectIOS \
@@ -35,7 +34,6 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY='' \
-            build
             build 2>&1 | tee build/xcodebuild.log
 
       - name: Show compiler errors
